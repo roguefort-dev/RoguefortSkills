@@ -5,6 +5,7 @@ This repository contains material under MIT and CC BY 4.0. The root [LICENSE](LI
 | Material | License and attribution |
 |---|---|
 | Original router, optimization guides, allocation guidance, post-FX extras, and repository documentation | MIT, copyright (c) 2026 roguefort-dev; [license](skills/perf-aio/licenses/roguefortskills-MIT.txt) |
+| `skills/webgpu-optimization/` | MIT, copyright (c) 2026 roguefort-dev; [license](skills/webgpu-optimization/licenses/roguefortskills-MIT.txt) |
 | `skills/perf-aio/pixijs/` | MIT, PixiJS; [upstream notice](skills/perf-aio/licenses/pixijs-skills.LICENSE) |
 | `skills/perf-aio/shaders/`, except `post-fx-extras.md` | MIT, MiniMax; [upstream notice](skills/perf-aio/licenses/minimax-skills.LICENSE) |
 | `skills/perf-aio/threejs/` | MIT, emalorenzo; [declaration, source attribution and terms](skills/perf-aio/licenses/three-agent-skills.NOTICE.md) |
