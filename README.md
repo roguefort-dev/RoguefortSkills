@@ -1,6 +1,11 @@
 # RoguefortSkills
 
-Agent skills for measured, practical optimization.
+Agent skills for measured, practical optimization and codebase cleanup.
+
+| Skill | What it does |
+|---|---|
+| [perf-aio](skills/perf-aio/SKILL.md) | Performance diagnosis, optimization patterns and graphics guidance |
+| [john-wick](skills/john-wick/SKILL.md) | Cleanup sweeps that find every instance of a code smell; first pass: implicit state machines |
 
 ## Install Perf AIO
 
@@ -31,6 +36,20 @@ Perf AIO connects performance diagnosis with programming patterns and graphics g
 The shared method actively and creatively transfers optimization mechanisms across domains. Each analogy becomes an experiment with explicit assumptions and correctness checks. GPU advice is vendor agnostic; optional hardware features require capability checks and a portable fallback. Choices are measured on the target workload and device.
 
 Load only the references needed for the task. Confirm API availability against your project's versions, especially in bundled engine guides. This repository contains guidance; benchmark results depend on the implementation and target hardware.
+
+## Install John Wick
+
+```sh
+npx skills add roguefort-dev/RoguefortSkills --skill john-wick
+```
+
+Or copy `skills/john-wick/` into your agent's skills directory.
+
+## John Wick
+
+John Wick runs cleanup sweeps over a whole codebase. Each kind of target is a pass with its own guide, and every pass scopes the codebase, sweeps it for signals, confirms each candidate by reading the code, and reports findings ranked by severity with exact locations. It reports by default and changes code only when asked.
+
+The first pass finds implicit state machines: lifecycles and modes encoded in loose booleans, status strings, nullable fields, counters or call-order rules instead of an explicit state type. For each one it reconstructs the states and transitions, flags invalid combinations and gaps, and suggests an explicit model in the project's language.
 
 ## Sources and licenses
 
