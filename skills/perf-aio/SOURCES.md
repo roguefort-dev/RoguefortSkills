@@ -17,6 +17,10 @@ Original synthesis: `optimization-patterns.md`, `work-avoidance.md`, `cpu-data-a
 
 The bundle's original material is MIT-licensed when published in RoguefortSkills. Upstream MIT notices remain in `licenses/`; `compute-kernels.md` retains its CC BY 4.0 license. Repository-wide license boundaries are recorded in the public repository's `LICENSES.md`.
 
+## Instruction-level and real-time audio addition — 2026-11-18
+
+Original synthesis: `realtime-audio.md` and the "Instruction-level costs" section of `cpu-data-and-simd.md`. Primary references are linked in each guide; no upstream code or passages are copied. MIT-licensed with the bundle's other original material.
+
 ## Compute optimization addition — 2026-10-03
 
 `compute-kernels.md` adapts NVIDIA Corporation & Affiliates / TileGym Team's [tilegym-improve-cutile-kernel-perf](https://github.com/NVIDIA/skills/tree/0e0d506f4eb67204a62586ac5f19df3cb7ad9b1f/skills/tilegym-improve-cutile-kernel-perf) (`SKILL.md`, `references/optimization-playbook.md`, `references/performance-model.md`, `references/perf-knobs-catalog.md`) and [tilegym-cutile-autotuning/references/pitfalls.md](https://github.com/NVIDIA/skills/blob/0e0d506f4eb67204a62586ac5f19df3cb7ad9b1f/skills/tilegym-cutile-autotuning/references/pitfalls.md), commit `0e0d506f4eb67204a62586ac5f19df3cb7ad9b1f`.

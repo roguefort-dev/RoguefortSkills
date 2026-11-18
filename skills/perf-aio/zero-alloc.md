@@ -4,6 +4,8 @@
 
 Allocation-free is a measured property. Code that "looks" allocation-free is only a hypothesis.
 
+On a real-time audio thread, allocation is a deadline hazard even without a GC; see [realtime-audio.md](realtime-audio.md) for the full list of blocking operations to keep off that thread.
+
 ## Verify
 
 | Stack | How to see per-frame allocations | How to lock it in |

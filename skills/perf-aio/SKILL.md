@@ -1,6 +1,6 @@
 ---
 name: perf-aio
-description: Performance and graphics reference. Use for data-oriented design and optimization patterns; algorithmic work avoidance; CPU locality/SIMD, concurrency, pipelines and runtime tuning; profiling frame time, GPU cost, draw calls, memory or GC; shaders (GLSL/HLSL/WGSL/MSL), compute kernels and post-processing; zero-allocation hot paths; or PixiJS v8, three.js and Unity performance work.
+description: Performance and graphics reference. Use for data-oriented design and optimization patterns; algorithmic work avoidance; CPU locality/SIMD, instruction-level costs, concurrency, pipelines and runtime tuning; profiling frame time, GPU cost, draw calls, memory or GC; shaders (GLSL/HLSL/WGSL/MSL), compute kernels and post-processing; zero-allocation hot paths; real-time audio/DSP callbacks and hard deadlines; or PixiJS v8, three.js and Unity performance work.
 ---
 
 # Perf AIO
@@ -12,7 +12,7 @@ One skill, many guides. Load only the guide(s) the task needs from the router be
 Every performance task follows the same loop. Each step ends on its criterion:
 
 1. **Measure** on the target device/build using [benchmarking.md](benchmarking.md): identify the workload's latency/throughput, memory and quality budget. Done when a representative baseline and correctness contract are recorded.
-2. **Find the bound** — excess work, CPU execution/cache behavior, submission, GPU execution/bandwidth, dependencies/queueing, or allocation/GC. Done when a controlled experiment confirms a candidate: work volume → [work-avoidance.md](work-avoidance.md); CPU → [cpu-data-and-simd.md](cpu-data-and-simd.md); waits → [concurrency-and-pipelines.md](concurrency-and-pipelines.md); graphics → [shader-optimization.md](shader-optimization.md); compute → [compute-kernels.md](compute-kernels.md); GC → [zero-alloc.md](zero-alloc.md).
+2. **Find the bound** — excess work, CPU execution/cache behavior, submission, GPU execution/bandwidth, dependencies/queueing, or allocation/GC. Done when a controlled experiment confirms a candidate: work volume → [work-avoidance.md](work-avoidance.md); CPU → [cpu-data-and-simd.md](cpu-data-and-simd.md); waits → [concurrency-and-pipelines.md](concurrency-and-pipelines.md); graphics → [shader-optimization.md](shader-optimization.md); compute → [compute-kernels.md](compute-kernels.md); GC → [zero-alloc.md](zero-alloc.md); missed hard deadlines (audio callbacks) → [realtime-audio.md](realtime-audio.md).
 3. **Fix the biggest cost** in that bound. Consider reducing work before making each operation cheaper; use [optimization-patterns.md](optimization-patterns.md) when representation or update structure is involved, the relevant stack guide, and cross-domain transfer below.
 4. **Validate and re-measure** with the same scenario. Done when correctness passes and the new number is recorded next to the baseline; keep the change only if the gain exceeds measurement noise and meets the workload's regression budget.
 
@@ -32,7 +32,8 @@ Search beyond these examples; consult another bundled guide when it informs a sp
 |---|---|
 | Data-oriented design, ECS/chunking tradeoffs, batch interfaces, dense handles, deferred mutations, reusable optimization patterns | [optimization-patterns.md](optimization-patterns.md) |
 | Algorithms, indexes, active worklists, caching/invalidation, dirty/versioned or incremental updates | [work-avoidance.md](work-avoidance.md) |
-| CPU hot loops, data layout, cache locality, SIMD/vectorization, branch/control-flow experiments | [cpu-data-and-simd.md](cpu-data-and-simd.md) |
+| CPU hot loops, data layout, cache locality, SIMD/vectorization, dependency chains, expensive operations, pointer chasing, subnormals, code layout, branch/control-flow experiments | [cpu-data-and-simd.md](cpu-data-and-simd.md) |
+| Real-time audio/DSP: callback deadlines, xruns, lock-free parameter/state handoff, denormals, AudioWorklet | [realtime-audio.md](realtime-audio.md) |
 | Jobs/workers, ownership, contention/false sharing, queues/backpressure, CPU–GPU overlap, transfers/readbacks, pacing | [concurrency-and-pipelines.md](concurrency-and-pipelines.md) |
 | Scan/prefix sum, compaction, sorting/grouping, histograms, segmented reductions | [parallel-primitives.md](parallel-primitives.md), then the CPU or compute guide for its backend |
 | Compiler/JIT/Burst inspection, PGO/tiering, precomputed execution plans, bounded specialization | [runtime-optimization.md](runtime-optimization.md) |

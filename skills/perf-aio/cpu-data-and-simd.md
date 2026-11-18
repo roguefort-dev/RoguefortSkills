@@ -1,6 +1,6 @@
 # CPU locality and SIMD
 
-Use for hot loops, bulk transforms, simulation, image/audio processing, parsers, or cache-bound data paths. Start with sampled CPU profiles and counters where available: time, cycles, instructions, cache/TLB misses, branch misses and transferred bytes. Interpret counters with the CPU/tool model; compare useful work and latency, not isolated counter percentages.
+Use for hot loops, bulk transforms, simulation, image/audio processing, parsers, or cache-bound data paths. Start with sampled CPU profiles and counters where available: time, cycles, instructions, cache/TLB misses, branch misses and transferred bytes. Interpret counters with the CPU/tool model; compare useful work and latency, not isolated counter percentages. Use the profiler that fits the platform (for example Linux `perf`, Intel VTune, AMD uProf, Apple Instruments, Windows Performance Analyzer, Superluminal or Tracy).
 
 ## Match layout to access
 
@@ -21,6 +21,18 @@ An alias/alignment assertion is a correctness promise; make it only when the cal
 
 SIMD width, alignment requirements, register availability and instruction throughput vary. Wider vectors can increase register pressure or change CPU operating behavior. Compare them on the supported devices. Software prefetch is a targeted experiment after access/working-set improvements; extra instructions or pollution can erase its benefit.
 
+## Instruction-level costs
+
+Use after layout and vectorization when profiles show a hot loop that is limited by its own instructions or by dependent memory accesses. Instruction latency and throughput vary by microarchitecture; look them up for the supported CPUs rather than assuming numbers.
+
+- **Dependency chains:** a loop-carried chain (`sum += x[i]`) runs at the latency of each operation, not at the CPU's throughput. Several independent accumulators combined at the end expose instruction-level parallelism. For floating point this reassociates the sum, and compilers do it only with explicit permission, so validate the result against the tolerance.
+- **Expensive operations:** division, square root, transcendental functions and modulo by a runtime value cost far more than multiply/add. Hoist reciprocals out of loops, use shifts/masks for power-of-two divisors, and replace functions with approximations or recurrences only within the established error budget.
+- **Lookup tables vs computation:** a table trades arithmetic for cache footprint and load latency. Measure with the real working set; a table that fits a microbenchmark's cache can lose once the full workload competes for it.
+- **Dependent loads (pointer chasing):** linked lists, trees and per-node indirection serialize on memory latency because each address depends on the previous load. Flatten into arrays or indices, or interleave several independent traversals so multiple misses are in flight.
+- **Subnormal floats:** values near zero can take a slow microcode path on many CPUs, which shows up in decaying feedback such as filters, damping and accumulators. Flush-to-zero/denormals-are-zero modes (per thread) or explicit flushing remove it where the numerical contract allows; [realtime-audio.md](realtime-audio.md) covers the audio case.
+- **Code layout:** keep hot paths compact and move error handling and rare cases out of line (cold/noinline attributes, `[[likely]]`/`[[unlikely]]` hints, PGO-driven function ordering). Check front-end/instruction-cache counters first; aggressive inlining and unrolling grow code and can cost more than they save.
+- **TLB pressure:** large working sets with scattered access can be limited by address-translation misses rather than data caches. Improve locality first; large/huge pages are a platform-specific experiment with memory and deployment costs.
+
 ## Control flow and runtime behavior
 
 Group work by stable type/state when sorting/grouping cost is repaid and order permits. Compare branches with selection/masking using actual distributions; branch prediction and eager computation change the tradeoff. Preserve short-circuit semantics and exceptional-value behavior.
@@ -34,3 +46,5 @@ Cross-domain transfer: GPU coalescing → contiguous CPU traversal; kernel tilin
 - [Intel layouts](https://www.intel.com/content/www/us/en/developer/articles/technical/memory-layout-transformations.html): AoS/SoA/AoSoA tradeoffs and conversion overhead; vendor examples are not portable defaults.
 - [LLVM vectorizers](https://llvm.org/docs/Vectorizers.html): reports, cost models, dependencies and runtime checks.
 - [Data Locality](https://github.com/munificent/game-programming-patterns/blob/master/book/data-locality.markdown): contiguous access and workload-driven layout.
+- [Agner Fog's optimization resources](https://www.agner.org/optimize/): microarchitecture behavior and instruction latency/throughput tables.
+- [uops.info](https://uops.info/): measured instruction latency, throughput and port usage across x86 microarchitectures.

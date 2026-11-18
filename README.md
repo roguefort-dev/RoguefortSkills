@@ -28,7 +28,8 @@ Perf AIO connects performance diagnosis with programming patterns and graphics g
 
 - Data-oriented design, layouts, batch processing, stable handles, and deferred mutations.
 - Work avoidance, indexing, caching, invalidation, and incremental updates.
-- CPU locality, SIMD, compiler/runtime tuning, and bounded specialization.
+- CPU locality, SIMD, instruction-level costs, compiler/runtime tuning, and bounded specialization.
+- Real-time audio/DSP: callback deadlines, lock-free handoff, denormals, and AudioWorklet.
 - Parallel jobs, ownership, contention, queues, backpressure, and CPU–GPU pipelines.
 - Portable shader/compute optimization, scan, compaction, reductions, and sorting.
 - Allocation/GC, shader techniques, post-processing, PixiJS v8, three.js, and Unity.
