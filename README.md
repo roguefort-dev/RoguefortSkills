@@ -1,11 +1,12 @@
 # RoguefortSkills
 
-Agent skills for measured, practical optimization and codebase cleanup.
+Agent skills for practical optimization, codebase cleanup, and search performance analysis.
 
 | Skill | What it does |
 |---|---|
 | [perf-aio](skills/perf-aio/SKILL.md) | Performance diagnosis, optimization patterns and graphics guidance |
 | [john-wick](skills/john-wick/SKILL.md) | Cleanup sweeps that find every instance of a code smell; first pass: implicit state machines |
+| [search-console-opportunities](skills/search-console-opportunities/SKILL.md) | Prioritize SEO actions using Google Search Console exports |
 
 ## Install Perf AIO
 
@@ -50,6 +51,14 @@ Or copy `skills/john-wick/` into your agent's skills directory.
 John Wick runs cleanup sweeps over a whole codebase. Each kind of target is a pass with its own guide, and every pass scopes the codebase, sweeps it for signals, confirms each candidate by reading the code, and reports findings ranked by severity with exact locations. It reports by default and changes code only when asked.
 
 The first pass finds implicit state machines: lifecycles and modes encoded in loose booleans, status strings, nullable fields, counters or call-order rules instead of an explicit state type. For each one it reconstructs the states and transitions, flags invalid combinations and gaps, and suggests an explicit model in the project's language.
+
+## Install Search Console Opportunities
+
+```sh
+npx skills add roguefort-dev/RoguefortSkills --skill search-console-opportunities
+```
+
+Or copy `skills/search-console-opportunities/` into your agent's skills directory. Give the agent your Search Console property, brand, and a few facts about your site. It can work from supplied exports or download them with a connected browser extension and access to the Downloads folder.
 
 ## Sources and licenses
 

@@ -1,0 +1,18 @@
+# Collect Search Console exports
+
+## Use a connected browser extension
+
+1. Discover the available browser-extension or browser-control tools and their download and local-file capabilities. Use the connected browser profile that already has the user's Search Console session. Open Search Console, select the exact requested URL-prefix or Domain property, and check the label. If multiple properties fit and their scope differs, resolve which one to use.
+2. Open **Performance → Search results**. Use the last three months and Web search by default. Keep relevant user-specified filters and remove unrelated inherited filters for a site-wide analysis. For page refreshes, choose **Compare** with the previous equivalent period and verify the date ranges. For a specific query-to-page match, filter to the exact query and inspect **Pages** under the same reporting scope.
+3. Before exporting, note the reported browser download path if available. Click **Export → Download CSV** and wait for the download to finish. If the tool exposes a completed download with a local path, use it. Otherwise, inspect the browser's Downloads view and find the newly completed file in the configured Downloads folder. If several files have similar names, identify the correct one by the download time and the browser's entry or exact path, including any numeric suffix. Resolve Downloads from the browser or operating system. Paths and filenames vary across installations.
+4. Read the exact downloaded file with a local file tool, shell, or data-analysis runtime that can access that folder. If it is a ZIP, list its entries and read the needed CSVs directly, or extract just those entries into an authorized temporary directory using safe paths. Keep **Queries**, **Pages**, and **Countries** as separate tables. Also read filter metadata when present. Check headers and date columns before running the tactic.
+5. If the session requires user sign-in or property access, ask the user to complete it in their browser. If the extension can't download or the local runtime can't read Downloads, give the user the exact report, date or comparison settings, and files to attach, or ask them to copy the export to a readable workspace. Continue from a valid supplied export if available.
+
+Use read-only Search Console views and normal downloads. Keep exported query and site data local unless the user requests another destination. Work with the named download and avoid opening unrelated files.
+
+## Verify the input
+
+- CSV exports usually include localized equivalents of `Top queries`, `Top pages`, or `Country` plus `Clicks`, `Impressions`, `CTR`, and `Position`. Match headers by meaning. Accept equivalent table exports from the same report. Require only the dimensions and metrics used by the selected tactic.
+- Read CSV with a parser that supports quoting, BOMs, and the export's delimiter and numeric locale. Resolve decimal and thousands separators from the data format. Treat ambiguous mappings as missing until clarified. Capture the actual date ranges and label current versus prior explicitly.
+- For comparisons, require current and prior data under the same property, search type, and applicable filters. Two separate exports can work when the periods are known and equivalent. Match them by page URL and treat absent rows as missing, since truncation can hide them.
+- To confirm specific page attribution, select the query row or apply an exact query filter and inspect **Pages**. Record what the filtered report shows. Use a country filter when verifying a localization hypothesis. [Search Console filtering and comparison](https://support.google.com/webmasters/answer/17011165)
