@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Performance opportunities: PROJECT NAME</title>
+</head>
+<body>
+
+<h1>Performance opportunities: PROJECT NAME</h1>
+<p>
+  <b>Scope:</b> what was audited (repository, directory, or diff).<br>
+  <b>Date:</b> YYYY-MM-DD.<br>
+  <b>Opportunities:</b> N.<br>
+  <b>How often each site runs:</b> measured (profiler / benchmark) or inferred from reading the code.
+</p>
+
+<h2>Summary</h2>
+<table border="1" cellpadding="4">
+  <tr><th>#</th><th>Opportunity</th><th>Location</th><th>Runs</th><th>Impact</th><th>Confidence</th><th>Effort</th></tr>
+  <tr>
+    <td>1</td>
+    <td><a href="#op-1">Short title of the change</a></td>
+    <td><code>src/path/file.ext:123</code></td>
+    <td>Per request</td><td>High</td><td>High</td><td>Small</td>
+  </tr>
+</table>
+
+<h2>Opportunities</h2>
+
+<h3 id="op-1">1. Short title of the change</h3>
+<p><b>Location:</b> <code>src/path/file.ext:123</code></p>
+<p><b>What the code does now:</b> one or two sentences.</p>
+<pre><code>short excerpt of the current code, with &lt; &gt; &amp; escaped</code></pre>
+<p><b>Technique:</b> <code>redis-002</code> Keep a handle to your container node for O(1) removal. The principle in one sentence. In Redis: one line on how the source project used it.</p>
+<p><b>Proposed change:</b> what to change, concretely.</p>
+<pre><code>optional sketch of the new code</code></pre>
+<table border="1" cellpadding="4">
+  <tr><th>Runs</th><td>How often this code executes and on what input sizes.</td></tr>
+  <tr><th>Impact</th><td>High: the mechanism, and a number only if measured or derivable.</td></tr>
+  <tr><th>Confidence</th><td>High: what was verified and what was assumed.</td></tr>
+  <tr><th>Effort</th><td>Small: rough size of the change.</td></tr>
+  <tr><th>Risk</th><td>What could go wrong, including the technique's known pitfall.</td></tr>
+  <tr><th>How to verify</th><td>The benchmark, counter or profile that would confirm the win.</td></tr>
+</table>
+
+<h2>Coverage</h2>
+<table border="1" cellpadding="4">
+  <tr><th>Unit</th><th>Files read</th><th>Opportunities</th></tr>
+  <tr><td><code>src/module/</code></td><td>12</td><td>3</td></tr>
+</table>
+<p><b>Excluded:</b> vendored, generated and build-output paths, listed here.</p>
+
+<h2>Method</h2>
+<p>Lenses read: algorithms, laziness, … What was measured and what was inferred.</p>
+
+</body>
+</html>

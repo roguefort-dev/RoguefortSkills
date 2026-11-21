@@ -1,0 +1,125 @@
+# Lens: simd (119 techniques)
+
+Vectorisation, intrinsics, data-parallel kernels, runtime CPU dispatch.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-064 | Reuse one SIMD implementation across ISAs with a translation header | Rewriting a large set of SSE intrinsics for NEON doubles the maintenance, and a scalar fallback is far slower.
+- ares-065 | Gate SIMD per feature at compile time, with a scalar fallback | Forcing `-msse4.2` on the whole build lets the compiler emit those instructions everywhere, so the program crashes at startup on older CPUs.
+- ares-107 | Use a single-instruction rounding intrinsic, guarded by feature macros | Rounding a float in a given mode can be one SSE4.1 `roundss`/`roundsd` or one NEON `vrndn` instead of a library call or a mode switch.
+- ares-156 | Build an exact three-operand saturating add from SIMD min/max | A saturated `a + b + carry` cannot be done with two saturating adds in arbitrary order.
+- dolphin-027 | Decode pixels 16 bytes at a time, with runtime CPU dispatch | Nibble expansion, byte shuffles and channel swizzles map directly onto SIMD AND/shift/OR and byte-shuffle instructions, so one instruction handles 16 pixels or channels.
+- dolphin-028 | Precompute each input byte's vector contribution | A linear transform such as a color-space conversion is a sum of per-input terms.
+- dolphin-087 | Byte-swap and widen in SIMD registers, dispatching on CPU features | Endian conversion of a buffer is a fixed byte permutation, so one `pshufb` swaps 16 bytes at once.
+- dolphin-088 | Expand bytes to wider pixels with SIMD broadcast-and-mask | Turning one intensity byte into a 4-byte RGBA pixel is a broadcast.
+- dolphin-097 | Widen packed data with unpack instructions, not per-element broadcasts | To expand narrow elements into wider ones (for example 8-bit intensity into 32-bit RGBA), load a whole run of source bytes into one vector register and interleave it with itself using unpack.
+- dolphin-098 | Use one byte-shuffle for any fixed byte permutation | Channel swaps (RGBA to BGRA) and endianness conversion are fixed permutations of bytes.
+- dolphin-100 | Hash with the hardware CRC instruction | If a hash is only needed to detect changes, not to resist attacks, the CPU's CRC32 instruction can mix 8 bytes per instruction.
+- dolphin-134 | Switch a pipeline to float so library SIMD paths turn on | Many DSP libraries vectorize only their float path.
+- dolphin-154 | Avoid false dependencies and domain-crossing penalties | Some instructions merge into the destination register, such as `MOVSD reg,reg`, which keeps the upper half.
+- dolphin-155 | Use non-destructive three-operand forms to drop copies | Two-operand SSE overwrites a source register, so keeping both inputs costs a `MOV` first.
+- dolphin-160 | Use combined load-and-transform instructions when the CPU has them | Detect optional ISA extensions at startup, and when present emit the single instruction that replaces a common pair: `MOVBE` for load+byteswap, `PDEP`/`ANDN` for bit scatter, `BLENDPD` for a lane merge.
+- dolphin-162 | Table-driven byte shuffles for byte-swap and widening in one step | A single `PSHUFB` with a precomputed control mask can byte-swap, reorder, and place narrow fields in the high bytes of 32-bit lanes all at once. (also: ares)
+- dolphin-166 | Break a serial dependency chain with independent accumulators | If each step of a loop depends on the previous one, as with a running CRC, throughput is limited by the instruction's latency, not its throughput.
+- dolphin-203 | Hardware CRC32 as a fast hash, with independent lanes | When a hash only needs to detect changes rather than resist attackers, the CPU's CRC32 instruction is much cheaper than a general hash.
+- dolphin-204 | Fill memory with wide stores of a repeating pattern | A byte-at-a-time fill loop with a parity test does one store and one branch per byte.
+- dolphin-251 | Use non-destructive three-operand SIMD forms to drop register copies | Legacy two-operand SIMD instructions overwrite one input, so you need a `MOVAPS` copy whenever that input is still needed.
+- dolphin-277 | Delegate checksums to a SIMD-tuned library | A textbook byte-at-a-time checksum loop runs far slower than implementations that use SIMD or CRC instructions.
+- dolphin-307 | Process several packed fields with one masked operation (SWAR) | When fields that need the same transform can be lined up in one register, a single AND with a combined mask, plus a shift-or, handles all of them at once.
+- dolphin-308 | Collapse a strided loop to one bulk call when the stride equals the row size | A per-row fill or copy over a 2-D buffer is a single contiguous operation when the row pitch equals the row width, so detect that case and issue one memset or memcpy.
+- dolphin-310 | Zero memory with the widest store the CPU has | Clearing a fixed-size aligned block, such as a cache line, takes fewer instructions with 256-bit stores than with two 128-bit ones.
+- dolphin-335 | Self-replacing function pointer for runtime CPU dispatch, plus a sampled hash | Initialise a function pointer to a resolver that detects CPU features, overwrites the pointer with the best implementation and forwards the call.
+- dolphin-336 | Compile one kernel source several times, once per ISA level | Write the SIMD kernel once against macros, include it repeatedly with different target macros, and pick the best variant at runtime through a function-pointer table.
+- duckstation-079 | Convert pixel formats with SIMD directly into mapped memory | Per-pixel channel swizzles are ideal for 128-bit SIMD, which handles 8 pixels per instruction.
+- duckstation-088 | Key caches on fast content hashes, with runtime CPU dispatch | To find a cache entry by content, hash the bytes with a modern non-cryptographic hash (XXH3) and use the hash as the map key.
+- duckstation-128 | Convert sample formats in fixed-size SIMD chunks | Converting audio between int16 and float one sample at a time wastes the vector units.
+- duckstation-150 | Write SIMD once through a thin portable vector class | Writing separate SSE and NEON intrinsics for each kernel doubles the code and leaves one path untested.
+- duckstation-151 | Transpose a matrix so inner products read contiguously, then use multiply-add pairs | A matrix multiply whose inner loop walks a column strides through memory and can't load a vector.
+- duckstation-152 | Vectorize per-pixel color conversion with fixed-point lanes | Color-space conversion applies the same integer formula to every pixel, which makes it ideal for SIMD.
+- duckstation-153 | Repack pixel formats with byte shuffles | Converting 32-bit RGBX to packed 24-bit RGB or to 16-bit forms byte by byte is slow and branchy.
+- duckstation-154 | Vector main loop plus scalar tail for fills | Fill the aligned bulk with full-width vector stores and finish the remainder with scalar stores.
+- duckstation-155 | Drop known-zero taps and vectorize the FIR | Many filters have structurally zero coefficients, such as every other tap in a half-band resampler.
+- duckstation-190 | Write SIMD kernels against a width-agnostic vector alias | Write the kernel once in terms of an alias such as `VecN` plus constants like `LANES`, and choose 128-bit or 256-bit lanes at compile time.
+- duckstation-192 | Emulate missing SIMD instructions so one code path serves older CPUs | Don't keep a separate scalar path for CPUs that lack a newer instruction set.
+- duckstation-193 | Vectorize pixel-format conversion loops | Bit-unpacking loops (5:5:5 to 8:8:8, 565 to RGBA) apply the same shifts and masks to every element, so they map directly onto SIMD.
+- duckstation-194 | Replace per-element conditionals with a computed bit-select mask | "Keep the old value if a flag bit is set, otherwise write the new one" is a per-element branch.
+- duckstation-196 | Pick the cheapest instruction for mask tests and blends on each ISA | The same operation can cost 1 or 5 instructions depending on how it is written.
+- duckstation-233 | Vectorize horizontal reductions, then finish with a scalar tail | To reduce a long array to a sum, min or max, keep a 4-wide vector accumulator in the main loop and collapse it once at the end with a horizontal add, min or max.
+- duckstation-235 | Load adjacent scalar fields as one vector | When two small fields sit next to each other in memory, read them with one load and widen them in registers.
+- duckstation-289 | Generate arithmetic sequences with vector adds instead of a dependent scalar chain | Filling memory with values where each depends on the previous one (`next = prev - 4`) forms a serial chain.
+- duckstation-292 | Use 16-bit multiply-add when value bounds prove it cannot overflow | A dot product of 16-bit samples and 16-bit coefficients maps onto `pmaddwd`/`vmlal`, which does two multiplies and an add per 32-bit lane.
+- duckstation-302 | Vectorize a separable 2D transform across rows and transpose between passes | Computing a matrix transform one output at a time, as a dot product per element, wastes lanes on horizontal reductions.
+- duckstation-304 | Index with the natural element width instead of gathering words and extracting fields | If each index is exactly one byte, read the bytes directly and use them as table indices.
+- duckstation-305 | Hold a 16-entry table in registers and look it up with a byte shuffle | A 16-entry table of 16-bit values fits in two registers once split into low and high bytes.
+- duckstation-306 | Replace a gather with one contiguous load when the access pattern is sequential | Gathers cost roughly one load per lane. If you can prove the addresses for a vector are consecutive, for example when coordinates step by one and no wrap or remap applies, issue a single vector load. Check…
+- duckstation-340 | A thin, header-only SIMD wrapper with one backend per ISA and feature macros | Write vector kernels once against a small value-type API (`add32`, `madd_s16`, `shuffle8`), and pick the SSE, NEON or scalar backend at compile time.
+- flycast-027 | Rasterize in blocks with trivial accept and reject | Walk a triangle's bounding box in small tiles, such as 4×4 pixels, using the incrementally updated edge functions.
+- flycast-028 | Shade four pixels per instruction with lane masks | Evaluate interpolants as plane equations for four pixels at once (`x*ddx + y*ddy + c` in SSE registers).
+- flycast-050 | Map 4-wide math onto SIMD lanes | A 4-element dot product or a 4×4 matrix-vector multiply written as scalar code takes 16 multiplies and a chain of dependent adds.
+- flycast-157 | Use fused multiply-add when the CPU has it | One FMA instruction replaces a multiply and an add: half the instructions, one fewer register move, and one rounding step instead of two.
+- melonds-029 | Do channel arithmetic on packed values in one register | If colour channels sit in disjoint bit fields of one word with enough headroom between them, you can mask the word and multiply it as a whole.
+- melonds-044 | SIMD within a register: process packed channels in one integer | When the fields are narrow and you leave guard bits between them, one 32- or 64-bit multiply or shift updates several fields at once.
+- melonds-170 | SWAR colour math: blend packed channels in one integer | If channels sit in separate bytes of a 32-bit word with spare headroom bits, one integer multiply-add can process several channels at once (SIMD within a register).
+- mesen2-052 | Gather bits from two lanes with one mask | If the bits you need sit at fixed distances inside a wider word, shift once and mask with a pattern that selects all of them together, then fold the upper lane down with one more shift.
+- mgba-021 | SWAR: one multiply blends several packed fields | Spread small fields across a wide integer with guard bits between them, so one multiply-add processes every field at once.
+- mgba-052 | De-interleaving SIMD loads for pixel-format narrowing | Structured load and store instructions can split interleaved data into lanes.
+- mgba-066 | Use a tuned library for standard pixel operations | For scaling, compositing and colour conversion, a library with SIMD back ends usually beats hand-rolled scalar loops.
+- mgba-113 | Prefer loops the compiler can vectorize over hand-written SIMD assembly | A plain, unrolled, alias-free loop gets auto-vectorized on every target, can be inlined, and needs no maintenance.
+- mgba-149 | Use SWAR permutes to merge mirrored code paths | Data packed into sub-word fields can be reversed or permuted with a few mask-and-shift operations (a byte swap, then a nibble swap).
+- pcsx2-009 | Avoid partial-register writes that create false dependencies | Instructions that write only part of a vector register (scalar moves, in-place shuffles) have to merge with the register's old contents.
+- pcsx2-018 | Compare fixed-size keys with aligned SIMD and order fields for early exit | For a fixed-size, aligned struct used as a lookup key, a generic `memcmp` is slower than comparing 16 bytes at a time with vector equality plus a movemask.
+- pcsx2-045 | Pack and unpack bitfields with lane-parallel shifts | Converting packed formats (5:5:5:1 to 8:8:8:8 and back) element by element in scalar code needs a dozen shifts and masks per element.
+- pcsx2-046 | Evaluate transcendentals with SIMD polynomials instead of x87 | Switching between legacy x87 and SIMD state is costly, and x87 instructions are slow.
+- pcsx2-054 | Stream large one-shot writes past the cache, then fence once | When you write a large buffer that this core won't read again soon, non-temporal stores avoid evicting useful cache lines and skip the read-for-ownership.
+- pcsx2-067 | Compare fixed-layout keys as a few wide words | Comparing a key byte by byte, field by field, or with a general `memcmp` costs many branches and length handling.
+- pcsx2-070 | Use newer ISA instructions when the CPU has them, with fallbacks | Newer instruction sets often replace a shuffle-then-store sequence, or a blend built from AND/ANDN/OR, with one instruction.
+- pcsx2-087 | Move 128-bit data with 128-bit loads and stores | Copying 16-byte records as four 32-bit words, or as two 64-bit halves, costs four (or two) times the instructions of one SSE move, and can cause partial-register stalls. (also: Flycast)
+- pcsx2-088 | Fold a scalar fix-up pass into the SIMD pass | If a vectorized kernel is followed by a scalar loop that sets a default value in every element, the data is walked twice and the second walk is slow.
+- pcsx2-097 | Compare floats as integers when the ordering matches | IEEE floats of the same sign order the same way as their bit patterns read as signed integers.
+- pcsx2-133 | Wider vectors and non-destructive SIMD encodings | Three-operand VEX encodings remove the register-copy moves that two-operand SSE needs.
+- pcsx2-161 | Replace per-lane branches with SIMD compare masks and blends | When you test several bytes or floats one by one with branches, the CPU mispredicts.
+- pcsx2-193 | Use a byte shuffle as a 16-entry lookup table | When the table is small (16 entries or fewer) and the indices are 4 bits wide, keep the table in vector registers and use a byte shuffle (`pshufb`/`vpshufb`) as the lookup.
+- pcsx2-194 | Choose against hardware gather on CPUs where it is microcoded | The same vector instruction can cost very different amounts on different microarchitectures.
+- pcsx2-195 | Match vector code to each instruction's real cost | Some vector operations cost nothing extra and others are expensive on particular cores.
+- pcsx2-196 | Vectorize short loops that decode fields one at a time | A loop that pulls 4-bit or 8-bit fields out of a word one by one, tests each one and stores it, can be done with a few vector instructions: mask, unpack nibbles, compare, movemask.
+- pcsx2-197 | Don't vectorize scalar work | Putting independent scalars in vector lanes, or in an array that gets indexed, adds insert, extract and spill traffic and blocks register allocation.
+- pcsx2-203 | Compare large structs with wide vector compares and an early exit | To test two fixed-size records for equality, use the widest compares available (256-bit), AND the masks together, and check once with movemask.
+- pcsx2-254 | Clamp floats with integer min/max on their bit patterns | IEEE floats of the same sign order the same way as their bit patterns read as integers.
+- pcsx2-259 | Replace a memory mask constant with a register blend | ANDing with a mask from memory costs a load on every use.
+- pcsx2-262 | Overlap constant tables and index them with unaligned loads | A table of shifted masks or step vectors can be one array with sliding windows into it, instead of N separately aligned vectors.
+- pcsx2-264 | Do per-vertex coordinate math in vector lanes | Fixed-point conversions on X and Y (offset, shift, widen) are the same operation on each component.
+- pcsx2-278 | Lay out filter coefficients for SIMD multiply-add | An FIR filter is a dot product. Store the coefficients as aligned `s16` arrays in tap order, and arrange the interpolation table so the taps for one phase sit next to each other. A few multiply-add and…
+- pcsx2-295 | Select vector operations from template-constant masks | When a write mask is a template parameter, the blend instruction can be chosen at compile time.
+- ppsspp-015 | SWAR: process several small values in one machine word | When data elements are 8 or 16 bits wide, load two or four of them into a 32-bit register and apply shifts and masks that act on every lane at once.
+- ppsspp-057 | Keep short vectors in SIMD registers and move them whole | Programs that work on 2–4-wide vectors should hold each vector in one SIMD register and load or store it with one wide or multi-register transfer.
+- ppsspp-068 | Vectorize per-pixel bit shuffling and bulk hashing | Pixel-format conversion, swizzle copies and checksum loops apply the same shift/mask/add to every element.
+- ppsspp-103 | SIMD for bulk sample and pixel format conversion | Format conversion loops (integer↔float, bit-field unpacking, scaling) apply the same few operations to every element.
+- ppsspp-104 | Vector scan with OR-accumulators and per-row early exit | To answer "does any element satisfy X?" over a big buffer, OR the results of SIMD compares into an accumulator.
+- ppsspp-155 | Convert data into the SIMD layout once, outside the hot loop | If the inner loop needs SIMD-friendly values but the source is packed or in another format, convert everything once into aligned arrays of vector types.
+- ppsspp-169 | Generate repeating integer patterns with vector adds | If an output sequence is a fixed pattern plus a running base, as in strip-to-list index conversion, precompute the pattern in a few vector registers.
+- ppsspp-170 | Overshoot the end instead of writing a scalar tail | If the destination buffer has slack, for example because it is append-only and the next write will overwrite the extra, round the vector loop count up and let it write a few elements past the logical end.
+- ppsspp-171 | Vector accumulate, then a cheap horizontal reduce | When scanning a buffer for an aggregate (AND mask, sum), keep a vector accumulator through the loop and reduce it to a scalar once at the end.
+- ppsspp-173 | An unrolled vector copy when alignment is guaranteed | When base and size are known to be multiples of 64 bytes, a loop of four 16-byte loads followed by four stores avoids `memcpy`'s size and alignment dispatch, and keeps several loads in flight at once.
+- ppsspp-215 | Build packed pixels in a register and store one word | To convert colors, build the whole 32-bit RGBA value in a register and store it once, not four separate bytes.
+- ppsspp-216 | Vectorize the hottest inner kernel with narrow integer or float lanes | Once profiling shows a kernel such as a filter tap loop or bilinear blend at the top, rewrite it so one instruction processes four or eight elements.
+- ppsspp-217 | Thin cross-platform SIMD wrapper types | Wrap the vector registers in small value types such as `Vec4F32` and `Mat4F32`, with inline methods that map to SSE2 or NEON.
+- ppsspp-219 | Specialize SIMD loops for the common small sizes | A SIMD loop tuned for long inputs still pays for its full setup and stores on tiny inputs.
+- ppsspp-239 | Evaluate edge functions for a group of pixels at once | A triangle rasterizer that tests each pixel against three linear edge equations can test four horizontally adjacent pixels in one vector.
+- ppsspp-240 | Vectorize across independent items, not within one | Short per-item math, such as setting up one triangle or computing one vertex, has too little parallelism inside it to fill a vector.
+- ppsspp-243 | Use the narrowest multiply that fits the operand range | Some ISAs have no fast 32-bit lane multiply but do have a fast 16-bit multiply-add.
+- ppsspp-260 | Multiply by lane to keep a matrix in four registers | Splatting every matrix element into its own vector needs 16 registers for a 4x4 matrix, more than many targets can keep live, so the compiler spills and reloads every iteration.
+- ppsspp-276 | Shape coefficient vectors so results land in storage order | Shuffles can easily cost more than the arithmetic they feed.
+- ppsspp-293 | Pack color channels with multiply-add instead of shifts | To narrow packed channels, mask them, then use a 16-bit multiply-add whose constants shift and combine two fields in one instruction.
+- redis-130 | Process a word at a time (SWAR) and skip uniform words | Without vector instructions, ordinary 32/64-bit registers can still process 4-8 bytes per operation ("SIMD within a register").
+- redis-131 | Ship wide-vector kernels with runtime CPU dispatch and size cutoffs | Compile vector variants of a hot kernel (POPCNT, AVX2, AVX-512, NEON) with per-function target attributes, choose one at runtime based on what the CPU supports, and keep a scalar fallback.
+- redis-132 | Unpack bit-packed fields in parallel with byte shuffles, and port kernels to every ISA | Densely packed fields (6-bit registers, 10/12-bit samples) are slow to unpack one at a time.
+- redis-133 | Compute on quantized data with integer SIMD | Store vectors as int8 with one scale factor per vector, or as one bit per dimension, and compute distances with integer SIMD: widen to int16, multiply-add into int32 so nothing overflows, and apply the scale…
+- redis-134 | Feed fast kernels chunks big enough to use them | A vector or hardware-accelerated kernel only beats scalar code above a minimum input size.
+- rocksdb-130 | Test many candidates per instruction instead of branching per candidate | When a query checks several independent positions (filter probe bits, hash-table slots), compute and test them all at once with vector instructions and combine the results, instead of a loop that exits early…
+- rocksdb-131 | Work a machine word at a time (SWAR, popcount, parity) | Treat a 64-bit integer as eight bytes or 64 flags: compare, test and count many elements per ordinary integer instruction, with `ctz`, `popcount` and parity finishing the job.
+- snes9x-014 | Shape per-sample DSP code so the compiler can vectorize it | Use the narrowest float type that meets quality needs, fold constant parameters out of the formula, and hoist loop-invariant loads.
+- snes9x-033 | Saturating arithmetic on packed fields within one integer (SWAR) | Several small fields packed into one machine word can be added or subtracted together if each field has a guard bit above it.
+- snes9x-090 | Use a vectorised library for pixel-format conversion | Colour-space conversions such as RGB565 to planar YUV are simple per-pixel arithmetic over large buffers.
+- snes9x-091 | Blend packed colour channels with one multiply (SWAR) | In a packed pixel format, mask the channels apart so that each has headroom bits above it.
+- snes9x-130 | Saturating per-channel arithmetic in one integer (SWAR) | Pack colour channels with a spare bit above each, add or subtract them all in one integer operation, then turn each channel's overflow bit into a saturation mask with a shift and multiply.
+- snes9x-159 | Blend packed colour channels with masked multiplies | In 565 or 555 colour, the non-adjacent channels (R and B) can be weighted together in one multiply after masking out the middle channel, since the gap absorbs the carry.
