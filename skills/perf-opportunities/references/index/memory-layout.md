@@ -1,0 +1,363 @@
+# Lens: memory-layout (357 techniques)
+
+Struct packing, cache locality, hot/cold splitting, compact encodings, indirection removal.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-017 | Store derived state instead of recomputing it in hot getters | If a hot getter branches on a mode or derives its value from other fields, compute the value when its inputs change and store it.
+- ares-023 | Index registers by array instead of switching on the number | Put same-typed fields in an array so selection by index is one addressed load or store.
+- ares-026 | Smaller code over template-expanded copies | Instantiating a function per register or per constant multiplies code size and pressure on the instruction cache.
+- ares-032 | Store data at the width it is consumed | If memory is always read as 16-bit units, store it as 16-bit units.
+- ares-035 | Keep coroutine stacks small for cache locality | Every context switch touches the top of another stack.
+- ares-053 | Reserve the JIT code buffer statically, next to the program text | Executable memory from `mmap` can land far from your binary, which forces long indirect calls into your helpers.
+- ares-069 | Keep a decoded shadow copy, updated on write | If data is stored packed (for example 4-bit pixels in 16-bit words) but read far more often than written, maintain a second, unpacked array.
+- ares-071 | Make huge bitmaps sparse: hash table of 64-bit words | A dense bitmap over a 64-bit key space can't be allocated.
+- ares-080 | One-entry memo for an address translation | Successive lookups usually land on the same page.
+- ares-081 | Frequency-counted front cache before a linear search | If a linear search over N entries keeps hitting the same few, put a tiny cache of pointers to the hottest entries in front of it.
+- ares-128 | Pack the valid flag into the tag word | Store a cache line's valid bit inside its tag word, so a hit test is a single compare against `tag | 1`.
+- ares-147 | Align context-save buffers for the widest stores used | Context-switch code saves registers with aligned vector moves (`movaps`), and paired stores (`ldp/stp`), which can perform better on 16-byte-aligned memory.
+- ares-154 | Round memories up to a power of two and pre-fill the mirrors | Allocate a power-of-two buffer and copy the mirrored contents into its padding once, at load time.
+- curl-045 | Shrink hot structs: bitfields for flags, narrowest correct integer types, fields ordered by size | For any struct instantiated per request, per connection or per entity, pack booleans into single bits, size each integer to its real range, and order fields by descending alignment so the compiler inserts no…
+- curl-046 | Split cold, rarely used state out of hot structs behind a pointer | If a large field is used by a minority of instances or only in a rare phase, replace the inline member with a pointer allocated on demand, so the common instance stays small.
+- curl-047 | Store the minimal canonical form; delete redundant and derivable fields | Keep only the fields a frequently allocated object needs, derive the rest on demand, and never store a second copy of data that another object already owns.
+- curl-048 | Drop per-node pointers no operation needs; store small indices or tags instead | Audit every pointer in a frequently instantiated node: remove back-links that are never followed, and replace pointers with narrower IDs or enum tags where possible.
+- curl-049 | Store timestamps as a base plus small integer offsets, or as one absolute deadline | Keep one full-precision base time and represent other instants as integer deltas from it; store a single absolute expiry instead of a start time plus a lifetime.
+- curl-050 | Use fixed slot arrays for small closed key spaces | When an object holds at most one entry per member of a small enum (timer kinds, phases), store an array indexed by that enum instead of dynamically allocated list nodes.
+- curl-051 | Overlay mutually exclusive per-variant state with a typed union | When an object carries state for exactly one of several variants, hold it in a union of typed members (or typed pointers) instead of separate members or an untyped `void *`.
+- dolphin-006 | Unpack bitfields into one byte per field | When code mostly reads and writes individual 4-bit fields of a packed register, each update costs a load, AND-mask, shift, OR and store.
+- dolphin-030 | Align buffers and strides for the consumer | Aligned SIMD stores are cheaper than unaligned ones, and GPUs fetch vertex attributes fastest when each attribute and the stride are 4-byte multiples.
+- dolphin-036 | Translate an address once, then walk a raw pointer | Going through a general accessor for every byte means repeating the whole address decode (region checks, masking, table lookup) for adjacent bytes.
+- dolphin-042 | Convert byte order at load time, not on every access | If memory is stored in a foreign byte order and swapped on every read and write, the hottest paths pay for a conversion that only matters at the boundary.
+- dolphin-059 | Collapse a row-by-row copy into one memcpy when the strides match | If the source and destination pitches are equal and no per-pixel conversion is needed, the 2D copy is really one contiguous block.
+- dolphin-061 | Drain a staging buffer by offset instead of shifting it | Consuming a buffer in fixed chunks by `memmove`-ing the remainder to the front costs O(n) per chunk.
+- dolphin-091 | Decode directly into the format the consumer wants | Decoding to an intermediate format and then converting to what the API wants costs an extra pass and an extra buffer.
+- dolphin-093 | Small set-associative cache in front of a slow translation | Address translation that walks page tables or hash tables is expensive, but accesses cluster on a few pages.
+- dolphin-129 | Order struct fields to remove padding | The compiler pads each field to its natural alignment.
+- dolphin-131 | Access memory directly and patch the rare faulting sites | Routing every guest memory access through a checked slow function is safe but slow.
+- dolphin-136 | Regenerate instead of reading back from write-only memory | Memory mapped from a GPU (write-combined or write-only) is extremely slow to read, and some mapping modes forbid reads entirely.
+- dolphin-178 | Track "already clear" to skip redundant resets, and use memset when you do clear | A cache-invalidate that runs often but usually finds the cache already empty should check a cheap flag first.
+- dolphin-200 | Merge adjacent loads and stores into wide or paired ones | If consecutive fields are read or written together, one wide or paired memory operation replaces several narrow ones.
+- dolphin-231 | Hand data to the consumer in the format it already accepts | A per-pixel copy loop that converts RGBA to BGR, only for the encoder to convert again, doubles memory traffic.
+- dolphin-232 | Restrict slow paths to the pages that need them | If a debugging or safety feature forces the slow path globally, everything gets slower.
+- dolphin-239 | Cache remote data in tiles and fetch only the tile that was asked for | If callers read single elements out of a large remote resource, copying the whole resource on the first miss wastes bandwidth and adds latency.
+- dolphin-259 | Bulk-copy contiguous bytes instead of one call per byte | A loop that writes one byte per call pays call overhead and bounds logic on every byte, and the compiler can't vectorize it.
+- dolphin-276 | Shrink hot structs: order fields by size and use the narrowest type | Padding between mixed-size fields and over-wide integers make structs bigger, so fewer fit per cache line and return values may no longer fit in registers.
+- dolphin-285 | Reserve big, commit on touch, and reset by remapping | A zero-initialised region that is large but mostly untouched can be reserved as anonymous virtual memory: the OS hands out zero pages on first access.
+- dolphin-292 | Merge adjacent narrow stores into one wider store | If two values go to neighbouring memory locations, write them with one wider or paired store.
+- dolphin-305 | Shrink small value types to 16 bytes so they travel in registers | On common 64-bit ABIs, a trivially copyable struct of 16 bytes or less is passed and returned in two registers, while a larger one goes through memory.
+- dolphin-306 | Bit-pack cache keys | Keys that get hashed, compared and stored by the thousand should hold only information that is needed and cannot be derived, packed into the smallest bitfields.
+- dolphin-315 | Process whole blocks straight from the input buffer | In block-based hashing or cipher code, copy into the staging block only to complete a partial block.
+- duckdb-058 | Represent a filtered subset as an index list, not a copy | After filtering, keep the original data where it is and pass along a small array of surviving positions.
+- duckdb-059 | Point at existing bytes instead of copying them (views and shared buffers) | When the source bytes already have the layout you need, hand out a pointer or view plus a reference that keeps the source alive.
+- duckdb-060 | Fixed-size string headers with an inline prefix (short strings fully inline) | Store each string as a 16-byte header: length, a 4-byte prefix, then either the rest of a short string inline or a pointer to the bytes.
+- duckdb-061 | Keep NULLs in a separate, lazily allocated bitmap where "absent" means "all valid" | Track missing values in a side bitmap, not inside the values, and don't allocate the bitmap until the first NULL appears.
+- duckdb-062 | Use row-major layout for data accessed by key; give each row one contiguous heap area | Scans favour columns, but hash tables, sort payloads and spill buffers are accessed one key at a time.
+- duckdb-063 | Store variable-length values as one byte blob plus an offsets array; derive what you can | Lay variable-length items out back to back in a single buffer, with a separate array of end offsets.
+- duckdb-064 | Inline small payloads into pointer slots and use spare pointer bits as tags | When most payloads are tiny (a short prefix, a single row id), store them inside the 8-byte word that would otherwise point to them, and use bits the pointer never needs to say which case applies.
+- duckdb-065 | Align and pad record fields, but only when something needs alignment | Pad fixed-width records so fields that need natural alignment (aggregate states, SIMD-loaded values) start on aligned addresses, and leave the padding out when nothing in the record needs it.
+- duckdb-066 | Co-locate on disk what is read together | If storage blocks mix columns, reading one column drags in the others.
+- duckstation-010 | Process buffers where they lie instead of copying them first | Copying data into a staging buffer "to be safe" costs bandwidth and cache space for every byte.
+- duckstation-012 | Never read back from write-combined memory | Mapped GPU upload buffers are usually write-combining and uncached.
+- duckstation-032 | Copy bulk transfers with a single memcpy | Moving a block word by word through a general access function pays dispatch, bounds and side-effect checks on every word.
+- duckstation-045 | Order struct fields to remove padding | The compiler pads each field to its alignment, so interleaving small and large fields wastes bytes and spreads hot data over more cache lines.
+- duckstation-049 | Map guest memory with the MMU and let faults handle the exceptions | Reserve a large virtual range and map the backing memory, including its mirrors, at fixed offsets.
+- duckstation-074 | Keep upload/download buffers persistently mapped | Mapping and unmapping a GPU buffer for every transfer costs driver round-trips and can implicitly synchronize.
+- duckstation-102 | Remove dead fields from per-element structs | In large arrays of small structs, every unused byte costs cache and memory bandwidth on each access.
+- duckstation-127 | Build asset tables only from what the code actually references | Rasterizing an entire icon font or CJK range into a texture atlas costs startup time and GPU memory, and usually less than 5% of it is used.
+- duckstation-132 | Map the same memory twice to drop software write checks | Map one shared-memory object at two virtual addresses.
+- duckstation-134 | Store pre-biased pointers in a translation table | A page table normally stores the page's base pointer, so each lookup needs `base + (addr & mask)`.
+- duckstation-143 | Align hot global state to the real cache-line size | The linker or LTO can place a hot struct so it straddles a cache line, which can cost double-digit percentages for no visible reason.
+- duckstation-144 | Order struct fields so hot ones stay in short-offset range | Load and store instructions encode only a limited immediate offset: 4 KB on ARM32, scaled 12-bit on ARM64.
+- duckstation-145 | Embed objects by value instead of behind heap pointers | A `unique_ptr` member adds a dependent load and a likely cache miss on every access, plus allocation at startup.
+- duckstation-158 | Write results in place instead of via a temporary copy | The pattern “copy the struct into a local, modify it, copy it back” moves the whole struct twice per call.
+- duckstation-159 | Pack flags as bits and manipulate them with masks | Flags stored one per byte in a union need byte-sized loads and stores and make combined tests awkward.
+- duckstation-160 | Size lookup tables to the reachable domain and drop the bounds check | If upstream code already clamps the key range, a table sized for a wider range wastes memory and cache, and a per-lookup range test re-checks a guarantee that already holds.
+- duckstation-162 | Bulk-copy ring-buffer ranges with memcpy for trivial types | Popping N elements from a circular buffer one at a time costs a modulo and a branch per element.
+- duckstation-179 | Size and share buffers by actual need, not worst case | Buffers sized for the largest possible configuration, and multiplied across N history slots, waste a lot of memory.
+- duckstation-198 | Make unused template members take zero bytes | When a field exists only in some instantiations, an empty placeholder type still takes at least one byte and its alignment padding, which bloats every object.
+- duckstation-199 | Guarantee alignment, then use aligned accesses | If an allocator rounds every record to a known alignment, the consumer can use aligned vector loads and stores, which are cheaper and on some ISAs the only fast form.
+- duckstation-200 | Store data in the format the consumer can use as-is | If the destination can accept the source's bit layout directly, choose that format.
+- duckstation-218 | Map only the hot alias of a mirrored memory region | Mapping every mirror of a region with the MMU makes all of them fast, but each protection change then needs one `mprotect` per mirror.
+- duckstation-227 | Make hot singletons static objects, not heap pointers | A global `unique_ptr<T>` costs an extra dependent load on every access and can't be resolved at link time.
+- duckstation-228 | Order struct fields and narrow their types to remove padding | The compiler pads after each field to satisfy the next field's alignment.
+- duckstation-234 | Guarantee alignment so vector loads can be aligned | If a buffer's size is padded to a multiple of the vector width and its start is aligned, you can drop the unaligned-load variants, the prologue and epilogue loops, and any split-cache-line accesses.
+- duckstation-237 | Drop packed structs on hot data | `#pragma pack(1)` takes away natural alignment.
+- duckstation-238 | Order fields to remove padding, and narrow types that are too wide | The compiler pads each field up to its alignment.
+- duckstation-239 | Put fields that are used together next to each other | Arrange a struct so the fields touched on the hot path share cache lines, and push cold configuration to the end.
+- duckstation-248 | Size buffers to the active configuration, not the maximum | Allocating for the worst case wastes memory, and any per-frame copy, snapshot or clear of that buffer then touches all of it.
+- duckstation-276 | Keep snapshots in the cheaper memory tier | When frequent snapshots of state would use up a scarce resource (VRAM, device memory), keep an equivalent snapshot in a cheaper tier.
+- duckstation-283 | Store a fixed-capacity container inline instead of behind a heap pointer | A container whose capacity is a small compile-time constant can live inside its owning struct.
+- duckstation-284 | Reorder fields and align instances, not types, to remove padding | Group fields by size, largest first and bools together, so the compiler inserts no alignment holes.
+- duckstation-285 | Keep optional-value flags in a shared bitmask | `std::optional<T>` adds a bool that usually rounds up to `alignof(T)`, so a struct with many optional fields doubles in size.
+- duckstation-287 | Copy a ring buffer as at most two contiguous memcpys | A wrapped ring or circular buffer is just two contiguous spans.
+- duckstation-315 | Place co-accessed fields adjacently and load them as a pair | If two fields are always read together, put them next to each other and enforce it with `static_assert(offsetof(...))`.
+- flycast-011 | Evict cache entries by age, a few per frame | Store a "last dirtied" timestamp (a frame number) instead of a boolean in each cache entry.
+- flycast-012 | Track cache invalidation with page write-protection | A cache derived from memory that can change, such as decoded textures, can be invalidated without checking or hashing on every lookup.
+- flycast-024 | Optimistic direct memory access with fault-driven patching | Emit guest loads and stores as plain host memory accesses into a reserved virtual mapping, with no address check.
+- flycast-031 | Pre-expand data into the layout the inner loop consumes | If every sample needs a neighbourhood, such as the 2×2 texels for bilinear filtering, store each sample with its neighbours already decoded and laid out next to each other in aligned memory.
+- flycast-036 | Swap through a scalar temporary, not a temporary array | To exchange two arrays element by element, use one register-held temporary inside the loop.
+- flycast-038 | Decode images at the size you display them, and free them promptly | Read only the image header first to learn the dimensions, then decode with a subsample factor so the full-resolution bitmap is never allocated.
+- flycast-066 | Copy fixed-size packets as aligned SIMD blocks, with an early exit for the common case | For a hot routine that copies a 32-byte record and then usually does nothing more, three things help.
+- flycast-078 | Tile vertical passes by column blocks | A filter that reads a pixel's upper and lower neighbors while walking down full image columns strides through memory and misses the cache constantly.
+- flycast-096 | Use page protection to detect writes instead of checking on every use | Rather than checking on every execution that cached derived data still matches its source, write-protect the source pages with the MMU.
+- flycast-111 | Mirror the guest address map in a large host reservation | On 64-bit hosts, reserve an address range as large as the whole guest space and map the backing memory, including mirrors, at the guest offsets.
+- flycast-112 | Bypass translation for accesses known to be physical | When a caller always holds physical addresses, as DMA engines do, call the untranslated accessor.
+- flycast-114 | Size buffers to the real working set | Buffers sized for a theoretical worst case cost RAM, cache footprint and serialization time.
+- flycast-128 | Pack per-element records into fewer bits | When millions of records (per-pixel fragments, per-polygon parameters) are written and read each frame, bandwidth is the bottleneck.
+- flycast-139 | Don't zero buffers you'll overwrite, and swap instead of copy | Value-initializing a large array (for example `std::array<u8, 4096>` inside a map) writes every byte, even when the next line `memcpy`s over it.
+- flycast-140 | Track dirty pages with memory protection; switch it off when unused | Write-protect memory and use the first fault on each page to record that it changed.
+- flycast-141 | Don't guard memory you already know will be rewritten | Page-protection invalidation works well when writes are rare.
+- flycast-177 | Port the virtual-memory fast path to a constrained OS | Mapping guest memory into one reserved host range lets generated code access it with a single base+offset load.
+- flycast-207 | Reserve the whole guest address space and patch faulting accesses | Map guest RAM, VRAM and their mirrors into one reserved host range, so a guest access is `base + (addr & mask)` with no checks.
+- flycast-208 | Tag the page table's pointer bits with a handler id or mirror shift | Base pointers aligned to 256 bytes leave their low bits free.
+- flycast-217 | Invalidate cached conversions by page write faults, and evict by age | Re-hashing every texture each frame is too slow.
+- haproxy-049 | Put the fields used together on the hot path in the same cache line | Order a record's fields by how often and how close together they are accessed.
+- haproxy-050 | Remove padding holes and narrow over-wide fields | Reorder members by size so that alignment wastes no bytes.
+- haproxy-051 | Size storage to what is actually used: unions, real bounds, no worst-case arrays | Fields that are never live at the same time should share storage.
+- haproxy-052 | Use small fixed-size codes in place of strings and general containers | Convert values that come from a known set to integers or enums once, represent small bounded sets as bitmasks, and keep a hash next to (or instead of) a string that is only ever compared for equality.
+- haproxy-053 | Represent time as one wrapping integer, not a multi-field struct | Store internal timestamps and deadlines as a single integer counter (ms or ns) rather than a {seconds, microseconds} pair.
+- haproxy-054 | Shrink lookup tables until they fit in L1 | Merge parallel lookup tables into one bit-per-property table, and store only the columns that really vary.
+- haproxy-055 | Embed small children and keys inline instead of pointing to them | When a child object or key is small and always present, store it inside the parent (a flexible array member, an embedded struct) instead of allocating it separately and storing a pointer.
+- haproxy-056 | Keep queue and ring entries small: pass pointers, trim per-message metadata | In high-volume queues and rings, enqueue a pointer or descriptor rather than a copy of the record, and keep the metadata that travels with each message to the minimum.
+- haproxy-057 | Align buffers and pooled objects at the allocator, not in the type | Have the allocator or pool return cache-line-aligned memory for hot objects and I/O buffers, while leaving the struct types themselves unpadded.
+- haproxy-058 | Store bookkeeping inside the free space it describes | When a buffer contains gaps (for example out-of-order data with holes), write each gap's size into the gap itself instead of keeping a side table.
+- melonds-009 | Flatten configuration into a page-granular lookup table | When attributes depend on address ranges that change rarely, such as permissions, latency or cacheability, expand the range list into one table entry per page each time the configuration changes.
+- melonds-010 | Cache a direct pointer to the current region; refresh it only on region change | Sequential accesses almost always stay in the same backing buffer.
+- melonds-023 | Pad buffers with a sentinel border to remove edge cases | Add a margin of dummy cells around a 2D buffer so that neighbourhood reads at the edges stay in bounds and return a neutral value.
+- melonds-026 | Keep a neighbour-dependent pass streaming by lagging it one row | If a post-pass on row y needs row y+1, don't fall back to a full second pass over the frame.
+- melonds-030 | Precompute a per-row mask and test bits in the inner loops | If several inner loops all need to know whether position x is enabled for them, compute a per-position bitmask once per row.
+- melonds-045 | Copy and fill in machine-word chunks | A loop that moves one 32-bit element per iteration does half the work it could on a 64-bit machine.
+- melonds-046 | Cache a direct pointer for the common unambiguous mapping | When an address can map to zero, one or several backing stores, the general lookup has to OR together every possible source.
+- melonds-050 | Swap buffer pointers instead of copying buffers | When a producer and a consumer share a frame, give each its own buffer and flip an index at the hand-off.
+- melonds-088 | Let the MMU do address translation, and back-patch on fault | Reserve a large virtual address range and map the real backing memory into it with the same layout as the emulated or remote address space, mirrors included.
+- melonds-101 | Machine-word bitsets with count-trailing-zeros iteration | Store bit flags in 64-bit words instead of bytes.
+- melonds-120 | Store instead of read-modify-write when the result is known | `x |= 1` on a value that can only be 0 or 1 has the same result as `x = 1`, but it adds a load and a data dependency.
+- melonds-121 | Fixed slot arrays of plain function pointers instead of maps of type-erased callables | A `std::map<id, std::function>` costs a tree walk, a pointer chase to a heap node, and an indirect call through the type-erasure layer, which may also have allocated.
+- melonds-127 | Align byte buffers to the widest type you read from them | A `u8[]` only guarantees 1-byte alignment.
+- melonds-148 | One power-of-two ring buffer instead of back buffer plus copy | A double-buffered scheme, where the producer fills a back buffer and copies it into the consumer FIFO at a boundary, adds a full copy and a boundary's worth of latency.
+- melonds-150 | Share memory through the owner's mapping table instead of a mirrored flat copy | Keeping a second component's flat buffer in sync with banked memory means copying on every remap, and the two can drift apart.
+- melonds-165 | Per-page cost tables and a cached region pointer for instruction fetch | If every fetch had to classify its address to find the backing memory and its access cost, the hot loop would carry a decoder.
+- melonds-174 | Burst-prefetch source data into a small per-stream FIFO | Fetching each sample through the full bus or memory-dispatch path costs a call every time.
+- mesen2-002 | Shrink tables and buffers so the working set stays in cache | A lookup table only helps while it stays cache-resident.
+- mesen2-013 | Store data at the width it is accessed | If every access reassembles a value from two bytes (`a[i] | a[i+1] << 8`), store the array as native 16-bit words.
+- mesen2-014 | Lay out hot fields by access frequency to fit cache lines | Put the fields the inner loop touches together at the start of the object, packed with small types, and move rarely used fields to the end.
+- mesen2-015 | Interleave tables that are read together | If a kernel always reads `A[i]` and `B[i]` together, store them interleaved as one array of pairs.
+- mesen2-019 | Cache configuration lookups in member fields | Going through an accessor chain such as `console->GetConfig().Flag` on every pixel adds pointer chasing and may block optimization.
+- mesen2-027 | Pass references to live state instead of building snapshots | Copying a large aggregate on every call, whether a local copy of a struct or a full multi-component state snapshot, costs memory bandwidth for data the callee mostly ignores.
+- mesen2-032 | Produce output at native resolution and upscale only when needed | If a pipeline always produces data at the worst-case size, every frame pays for 4× the pixels of the common case.
+- mesen2-033 | Bulk-copy blocks instead of per-element virtual calls | Dumping memory one byte at a time through a virtual accessor makes one indirect call per byte.
+- mesen2-034 | Snapshot source data once, then compute from the copy | Fetch shared source buffers once per refresh and pass raw pointers to the computation, rather than calling getters inside per-pixel helpers.
+- mesen2-058 | Trim per-element bookkeeping to what consumers read | For a side array with one record per byte of a large address space, every field costs memory and cache traffic on every access.
+- mesen2-062 | Bulk-copy arrays of plain values instead of per-element encoding | If elements are trivially copyable and the stored layout matches memory (single bytes, or a little-endian host), one `memcpy` or range insert replaces a per-element loop with per-byte shifts.
+- mesen2-063 | Serialize only the live part of fixed-capacity buffers | A fixed-size array with a count field usually holds far fewer live entries than its capacity.
+- mesen2-067 | Bind references to cache entries instead of copying structs | Writing `T x = table[i]` in a loop copies the whole struct on every iteration.
+- mesen2-086 | Cap auxiliary stacks that unusual input can grow without bound | Bookkeeping that assumes balanced push and pop (calls and returns, open and close tags) can grow forever on input that never pops.
+- mesen2-103 | Store snapshots as XOR deltas against periodic keyframes, then compress quickly | Consecutive snapshots of a large state are mostly identical.
+- mesen2-104 | Cap a cache by bytes, not by entry count | When entry sizes vary a lot (different consoles, compressed versus raw data), a limit on item count or duration can mean wildly different memory use.
+- mesen2-105 | Don't serialize what you can recompute on load | Lookup tables derived from a few registers don't need to be saved.
+- mesen2-106 | Turn off background features in secondary instances that can't use them | When you create a second copy of a subsystem for a preview or a sandbox, it inherits every always-on feature from the original configuration.
+- mesen2-108 | Copy a whole surface with one memcpy when the strides match | Copying row by row is only needed when the destination pitch differs from the source width.
+- mesen2-120 | Release window graphs on close: named handlers, disposed view models | A lambda subscribed to a long-lived object's event captures its surroundings and keeps them alive.
+- mesen2-130 | Embed a small lookup table by value in an inline-able helper | If a lookup table sits behind a heap pointer and its getter is out of line, every lookup costs a call plus a pointer chase.
+- mesen2-139 | Lend the loaded buffer instead of copying it out | If an object already holds file data in memory, returning a reference to it avoids a second allocation and a full copy.
+- mesen2-155 | Map address pages with a pointer table | Split the address space into fixed-size pages and keep an array of pointers to the backing memory of each page, or to a handler for it.
+- mesen2-161 | Store snapshots as XOR deltas against periodic keyframes | Consecutive snapshots are mostly identical.
+- mesen2-168 | Upscale by building one row, then copying it | For nearest-neighbour upscaling, each output row is repeated `scale` times.
+- mgba-008 | Accumulate in locals and write back once | Updating a field through a pointer forces a load-modify-store each time and blocks optimization because of possible aliasing.
+- mgba-013 | Put the sort key in a value's top bits so ordering is one compare | Pack metadata into the high bits of the data word, with priority in the most significant bits.
+- mgba-017 | Pre-offset base pointers and hoist invariants into locals | Do the loop-invariant address arithmetic once by offsetting a base pointer, walk with a pointer instead of an index, and copy struct fields used in loop conditions into locals.
+- mgba-020 | Composite in a small hot scratch buffer, then copy out once | Run multi-pass read-modify-write work in a small buffer that stays in cache, next to the other state the code uses, and publish the result to the large destination with one sequential copy.
+- mgba-022 | Own your bit layout: mask instead of extract, and shrink bulk records | To test a flag, a single AND is enough; there is no need to shift the bits out first.
+- mgba-026 | Store intermediates at the consumer's precision | If the final consumer only needs N bits, buffer at N bits.
+- mgba-041 | Take the instrumented path only when instrumentation is on, and use arrays, not lists | Choose a per-step slow path only when a hook could fire.
+- mgba-045 | Fewer specialised handlers can beat more: mind the I-cache | Over-specialising, such as one function per constant operand, inflates code size.
+- mgba-047 | Explicit shift/mask flags instead of compiler bitfields | Pack related booleans into one integer with generated inline get and set helpers.
+- mgba-072 | Don't maintain derivable state on the hot path | If a field can always be computed cheaply from others, compute it at its rare point of use instead of updating it on every event.
+- mgba-075 | Cache a range-keyed dispatch decision behind a swappable fast path | When an expensive decode (address map, route table) gives the same answer across a range, cache the target pointer together with the range bounds.
+- mgba-088 | Index by byte offset when you already have one | Writing `((T*)base)[off >> k]` shifts right only for the hardware to scale back left.
+- mgba-111 | Overwrite the whole word instead of updating packed fields | Setting individual bitfields compiles to load-old-word, mask, OR, store.
+- mgba-125 | Store data at the rate it varies, in its natural type, and skip clears of overwritten buffers | Per-line constants shouldn't be stored per pixel.
+- mgba-139 | Copy hot fields into locals around opaque calls | A compiler must assume any call it can't see into, or any pointer that might alias, could modify struct fields.
+- mgba-141 | Keep internal state in the host's native byte order | Pay for format conversion only at I/O boundaries.
+- mgba-190 | Make alignment fast-path checks exactly as strict as the access size | If an alignment check demands more alignment than the access needs, it quietly sends most accesses down the slow path.
+- mgba-210 | Reserve special-purpose memory for the buffers that need it | Pools of DMA-capable, GPU-visible or pinned memory are small.
+- mgba-221 | Cache the current segment's base pointer and mask; refresh only on boundary crossings | For sequential access through a segmented address space, keep a raw pointer and mask for the current segment, so the hot access is `base[addr & mask]`.
+- mgba-230 | Pack sort key and payload into one word; generate one inner loop per mode | Put the priority and flags in the high bits and the colour in the low bits of one 32-bit word, so depth testing is a single integer compare on data already loaded.
+- netty-035 | Shrink state that is multiplied by the connection count | Treat every field of an object that exists once per connection, stream or message as a cost multiplied by the peak instance count.
+- netty-036 | Inline storage for the common cardinality, overflow for the rest | Most collections attached to an object hold zero or one element.
+- netty-037 | Pack flags, small values and trees into machine words and flat arrays | Encode booleans, small enums, handles and multi-value results as bit fields of an int or long, and store trees as implicit arrays indexed by position instead of linked nodes.
+- netty-038 | Move rarely used fields out of the hot object | Keep only commonly used state in the main object.
+- netty-039 | Keep fields that are used together in one record | When every access touches all attributes of an item, store the item as one record (array of structs) in a plain array, not as several parallel arrays or a list of wrappers.
+- netty-040 | Keep ASCII protocol text as bytes, not as wide strings | Header names, methods, status lines and pass-through payloads are ASCII on the wire.
+- netty-041 | Size defaults and metadata from the common case and the exact bound | Choose initial capacities, per-connection buffer sizes and allocator metadata from what the typical workload actually uses and from the protocol's exact limits, not from a generous worst case.
+- nginx-034 | Shrink the objects you allocate per request or connection | Any object that exists once per unit of concurrency should be as small as possible.
+- nginx-035 | Lay out fields by when they are used: hot first, setup-only last, phase-dead fields reused | Put the fields the hot path reads at the front of the struct, and move setup-only fields to the end.
+- nginx-036 | Embed owned sub-objects and co-locate parts in one block sized to the allocator's classes | If an object always owns exactly one sub-object, embed it instead of pointing to a separate allocation.
+- nginx-037 | Put payload into alignment padding | Alignment leaves holes in structs. Small fields placed in those holes cost nothing, and a field can be widened for free if the extra bytes were padding anyway.
+- nginx-038 | Key on compact binary forms, not text, and store only what the index does not already hold | Use the native binary form of a key (a 4-byte IPv4 address, a 16-byte digest) instead of its text form.
+- nginx-039 | Use the free low bits of aligned pointers as tags | Aligned pointers always have zero low bits.
+- nginx-040 | Use length-counted string slices and end-pointer-returning writers | Represent strings as `{len, ptr}` views into existing buffers, not NUL-terminated copies.
+- nginx-041 | Align exactly as much as the data needs | Pay for alignment only where the type requires it.
+- nginx-042 | Store append-only collections as chunked arrays (an unrolled list) | For collections that mostly grow and are iterated in order, use a chain of fixed-size arrays rather than a single array that must be reallocated, or a list with one node per element.
+- nginx-043 | Make direct-indexed tables sparse: null for empty buckets, sentinel-terminated rows | In a large first-level index array, store only a pointer per slot and leave it NULL when the bucket is empty.
+- nginx-044 | Intern identical values: keep one copy and share the pointer | When many entries carry the same value, or many config entries refer to the same resource, deduplicate at build time and let them all point to a single instance.
+- nginx-045 | Audit the per-connection memory of library defaults | Libraries can quietly allocate large state for each session for features you never use.
+- pcsx2-010 | Group hot lookup tables into one cache-aligned block | Placing related hot tables as separate globals lets the linker scatter them.
+- pcsx2-014 | Store entries by value in a sorted array and binary-search it | A vector of pointers to separately allocated records costs a pointer chase and a likely cache miss per comparison.
+- pcsx2-022 | Deduplicate constants in a pool using a small hash | Appending a fresh copy of every constant that generated code references fills the constant area quickly and forces resets.
+- pcsx2-023 | On reset, clear only what is actually stale | A reset routine that wipes every buffer, including large regions that are rebuilt or never read before being overwritten, turns each reset into a visible stall.
+- pcsx2-052 | Power-of-two ring buffer with masked indices | If a ring buffer's size is a power of two, wrapping an index is just `(pos + n) & mask`.
+- pcsx2-053 | Copy while you parse, in one pass | If data must be both validated and moved, a parse pass followed by a copy pass reads the input twice.
+- pcsx2-079 | Place fixed-size memory at static addresses the compiler can see | Reaching emulated or pooled memory through separately allocated global pointers costs an extra load per access.
+- pcsx2-080 | Use whole bytes and words instead of bitfields for hot fields | Every read of a bitfield member compiles to a load, shift and mask, and every write to a read-modify-write.
+- pcsx2-081 | Reserve address space for sparse tables and commit pages on first touch | A huge, sparsely used lookup table doesn't need physical memory for the parts nobody uses.
+- pcsx2-107 | Drop a cache that grows faster than it saves | A cache keyed on something with high cardinality, such as arbitrary rectangles, keeps growing, and its memory and hashing cost can exceed the cost of just recomputing.
+- pcsx2-109 | Contiguous vectors instead of linked lists | A `std::list` pays for one allocation per node and a pointer chase per element.
+- pcsx2-130 | Reserve address space up front, commit pages on first touch | Reserve one large contiguous virtual range at a fixed address up front, but give it physical memory only for the blocks that are actually touched.
+- pcsx2-138 | Shrink records to the fields actually consumed | Bandwidth scales with record size. When the receiver ignores some components, or treats them as constants, drop them from the wire format and supply them on the receiving side. Then check the alignment, so…
+- pcsx2-140 | Put frequently compared fields together at the front | Order struct members so the fields checked on every call sit next to each other and fill the fewest cache lines.
+- pcsx2-158 | Copy only payload bytes, not the source stride | When the source rows are wider than the region you need, a single bulk copy of rows × pitch moves padding too.
+- pcsx2-159 | Produce data directly in the destination buffer | Writing into a temporary buffer and then copying it into the final buffer moves every byte twice.
+- pcsx2-175 | Pack lookup keys and cache derived values in the entry | Shrink key fields to their real range so the key fits in fewer machine words.
+- pcsx2-177 | Embed fixed-size members instead of heap-allocating them | A member that is allocated separately and reached through a pointer costs an extra dependent load on every access, and has to be null-checked or set up.
+- pcsx2-180 | Store scanned collections contiguously, not as node lists | Linked lists scatter their nodes across the heap, so each step of a scan risks a cache miss.
+- pcsx2-186 | Share one constant table across threads, allocated low in memory | Per-instance copies of constant tables waste cache, because every thread pulls in its own copy.
+- pcsx2-202 | Search a dense array of key-and-pointer pairs | A linear search through a linked list of large nodes touches one cache line, and suffers a dependent miss, for each candidate.
+- pcsx2-217 | Put JIT constants in a static array next to the code | Generated code can reach data within ±2 GB through 32-bit RIP-relative displacements.
+- pcsx2-235 | Collapse per-field or per-row work into one block operation | When elements are contiguous (equal source and destination stride, equal to the row size), copy or compare the whole span with a single `memcpy`/`memcmp`.
+- pcsx2-250 | Pack small counters and flags into bitfields or spare bits | A value that never exceeds 4 does not need a byte, and a pointer-aligned address leaves its low bits unused.
+- pcsx2-265 | Fill linear runs of a swizzled layout with a plain vector fill | In a tiled or swizzled layout, writing a constant pixel by pixel through the address function is slow.
+- pcsx2-282 | Bound content-addressed caches by entry count | A cache bounded only by age can grow without limit when a workload creates thousands of short-lived unique entries.
+- pcsx2-283 | Use the pointer's sign bit to mark entries that need a handler | A software page table can store host pointers and handler IDs in the same word.
+- postgresql-065 | Split hot fields into a dense side array | If a hot loop reads a few fields from many large objects, copy or move just those fields into a compact array of small structs and leave the rest cold.
+- postgresql-066 | Order and narrow struct fields to remove padding | Sort fields by alignment and shrink counters to the width their range needs.
+- postgresql-067 | Give the hottest struct a hard size budget | When one struct is touched on every step of a hot loop, such as an interpreter instruction, keep it within one cache line.
+- postgresql-068 | Compute addresses from layout instead of storing pointers | If an object always sits at a known offset (base + index*size, or right after its header), compute its address rather than storing a pointer or a pointer table.
+- postgresql-069 | Size headers and arrays to the actual value | Most variable-length values are small, so give them a short header.
+- postgresql-070 | Use a slimmer format where some fields are not needed | Data that never leaves memory (sort buffers, hash tables, spill files) does not need the fields that only persistent storage uses.
+- postgresql-071 | Strip in-memory alignment padding when writing out | Alignment padding helps CPU access but is useless on disk or in an index.
+- postgresql-072 | Precompute field offsets and decode records in one pass | For records with variable-width fields, cache the constant byte offsets of the leading fixed-width columns.
+- postgresql-073 | Pack big in-memory lists: shared data, offsets, chunks | For long lists of small records, factor out shared data, store offsets or small integers instead of pointers, and pack the items into large chunks.
+- postgresql-074 | Small inline array first, hash table only on overflow | When most users track only a few items, keep them in a tiny array (about one cache line) searched linearly, and spill to a hash table only when it fills.
+- postgresql-075 | Embed container links in the payload allocation | Put list or tree link fields inside the payload object, or in a few extra bytes of its allocation, instead of allocating a separate node that points to it.
+- postgresql-076 | Keep a working representation separate from the stored one | Formats built for storage are compact and pointer-free, which makes them slow to update element by element.
+- postgresql-077 | Run hot operations directly on the stored form | When a value is mostly compared, hashed or measured, implement those operations on its compact stored bytes instead of decoding it each time.
+- postgresql-078 | Design serialized formats for random access and zero-copy reads | Lay out serialized data so readers can point into the buffer: respect alignment, and allow O(1) or binary-search access to element k.
+- postgresql-079 | Pack composite values into one machine integer | Encode a multi-field value such as (block, offset) or (seconds, nanoseconds) as one 64-bit integer, so comparison, arithmetic and hashing are single instructions.
+- postgresql-080 | Move large values out of line and fetch only the slice needed | Keep rows small by storing large values elsewhere in fixed-size chunks with a pointer left in the row.
+- postgresql-081 | Compress adaptively, and avoid compression work when possible | Never store "compressed" data that came out bigger.
+- postgresql-082 | Bit-pack small per-item states into a dedicated dense store | When each item has only a few possible states, store them as 2-bit fields in small fixed segments with their own small cache, not as rows in a general table.
+- postgresql-083 | Spend a few header bytes on a "is there work here?" hint | Store a tiny summary in each page header so you can tell cheaply whether expensive per-page work could do anything, and keep the hint accurate.
+- postgresql-084 | Store a fixed-size fingerprint instead of a wide key | For equality-only lookups on wide keys, index a 32-bit hash and recheck the real value only on a hash match.
+- postgresql-085 | Let the record format supply missing trailing fields | If each record says how many fields it physically contains, a new field with a constant default can be stored once in the schema and synthesized when old records are read, instead of rewriting every record.
+- postgresql-086 | Shrink static lookup tables: narrower element types, sparse storage | Generated tables are read constantly but rarely examined.
+- ppsspp-007 | Hand over the source buffer when no conversion is needed | A staging copy is only needed when the layout changes.
+- ppsspp-013 | Walk raw pointers instead of calling checked accessors per element | An accessor like `ReadU32(addr)` may mask, bounds-check or translate the address on every call.
+- ppsspp-014 | Replace element-wise copy loops with one bulk copy | Copying arrays field by field in a loop leaves speed on the table compared with `memcpy`, which uses the widest moves and prefetch-friendly patterns.
+- ppsspp-017 | Ping-pong between scratch buffers to avoid in-place shuffling | Expanding data in place forces backwards iteration and temporary blocks to avoid overwriting unread input.
+- ppsspp-028 | Write the first contributor instead of clearing and then accumulating | Zeroing a buffer and then adding every source into it costs one extra full pass.
+- ppsspp-047 | Reset state by copying a prebuilt template | If an object goes back to the same initial state over and over, build that state once and restore it with a single `memcpy`.
+- ppsspp-059 | Hold rarely used heavy members behind a pointer | An embedded container in every element of a large array costs construction, destruction and memory for every element, even when it is almost always empty.
+- ppsspp-069 | Let the consumer read with a stride instead of repacking | If data sits inside a wider buffer, many APIs (GL unpack row length, `memcpy2D`, image views) can read it in place with a pitch.
+- ppsspp-074 | Prefetch the next chunk of a streaming read | In a loop that walks memory linearly with enough work per element, an explicit prefetch a cache line or two ahead overlaps memory latency with computation.
+- ppsspp-106 | Open-addressing hash map with a separate state array | Node-based hash maps chase pointers and allocate on every insert.
+- ppsspp-134 | Use the widest load/store the data allows | Moving a 12-byte record as three 32-bit moves, or a 16-bit field as two byte loads plus an OR, costs extra instructions and ports.
+- ppsspp-139 | Keep container entries small and stable | Large values stored inline in a map make rehashing, node allocation and iteration move more bytes, and their addresses can't be held safely.
+- ppsspp-148 | Group hot globals by how often they are used together | Variables that are declared next to each other usually sit next to each other in memory.
+- ppsspp-151 | Size fields to the range they actually hold | If a value never needs more than 8 or 16 bits, store it in that width.
+- ppsspp-153 | Write each output once when the destination is uncached | Write-combined or uncached memory, such as mapped GPU buffers, is very slow to read back and to write piecemeal.
+- ppsspp-204 | Memoize per-element work when indices reuse elements heavily | When an index buffer references each vertex several times, transform every unique vertex once into a scratch array and index into that.
+- ppsspp-210 | Pad or convert during the final copy, not in stored data | If a consumer needs data in a padded or converted layout, keep the compact original in memory and apply the transform while copying into the destination buffer.
+- ppsspp-225 | Flat layouts for compiler bookkeeping: arenas and flag arrays | Put variable-length records into one contiguous arena and refer to them by offset.
+- ppsspp-237 | Block-linked byte queue with per-block scanning | A byte queue made of linked fixed-size blocks appends and consumes in bulk without moving existing data.
+- ppsspp-284 | Shadow array indexed by address for block lookup | Mirror the guest address space with a parallel array of block handles, one slot per instruction.
+- ppsspp-285 | Flat host mapping of guest memory with a fault-handler safety net | Reserve one host region laid out like the guest address space, so a guest access is `base + addr` with no bounds checks or region switch.
+- redis-059 | Pack small collections into one contiguous blob; promote to a real structure past a threshold | For small N, a flat byte array scanned linearly beats a pointer-based hash table, list or tree.
+- redis-060 | Co-allocate an object's header, payload and metadata in one block | Put the variable-length tail (string bytes, per-level arrays, buffers, optional metadata) in the same allocation as its header instead of pointing to separately allocated pieces.
+- redis-061 | Order, narrow and derive struct fields to kill padding and fit a smaller size class | Sort fields by alignment, shrink each to the smallest type that works, and delete fields that can be derived from others.
+- redis-062 | Keep hot fields in the first cache line and keep inline buffers sized to the common case | Fields read on every operation belong together at the start of the struct; large inline arrays should be sized for the typical request, spilling to the heap for outliers.
+- redis-063 | Make the inner loop walk memory contiguously | For flat multi-dimensional arrays, choose the index formula so the innermost loop touches adjacent addresses.
+- redis-064 | Store numbers as machine integers, tagged with an encoding | When a value parses as an integer, store the integer itself (even inside the pointer field) and record the representation in a small per-object encoding tag.
+- redis-065 | Use variable-length length/type prefixes and spend spare tag bits on tiny values | Most lengths and integers are small: encode them in one byte, use more bytes only for large values, and pack the type tag and even tiny immediate values into the same byte.
+- redis-066 | Choose each object's header width from its payload size | Instead of one header sized for the worst case, offer several header classes (8/16/32/64-bit length fields) and pick per object, with a type tag in the byte just before the payload so access stays O(1).
+- redis-067 | Share one immutable instance of hot small values (flyweight), but only values known to be hot | Preallocate canonical immutable objects for frequent values (small integers, constant replies) and hand out references instead of fresh copies.
+- redis-068 | Store data once and point to it; drop fields an invariant already implies | When two indexes hold the same data, keep one copy and reference it from both; drop wrapper objects that add no information and fields whose value is fixed by an invariant.
+- redis-069 | Store small scalars inline in the container slot instead of boxing them | Give hash entries (or similar slots) a union so an integer or double lives in the slot itself rather than in a separately allocated object.
+- redis-070 | Use the low bits of aligned pointers as type tags to avoid wrapper nodes | Allocations are aligned, so a pointer's low bits are always zero; use them to say what the pointer points to, letting a slot hold the payload pointer directly instead of a pointer to a wrapper entry.
+- redis-071 | Pack small metadata into bitfields and spare header bits | Counts, flags, encodings and coarse timestamps rarely need full words; pack them into bitfields or bits left unused in an existing header, and leave spare bits for future features.
+- redis-072 | Pick the representation by fill level: sparse run-length that promotes to dense | Mostly-empty structures use a run-length or opcode encoding that costs a few bytes; once they cross a size threshold, convert one way to a fixed-size dense array that is fast to access.
+- redis-073 | Factor out what neighbouring records share: base values, deltas and schema templates | Successive records in a block often share field names and have close keys; store a per-block master (base ID, field list) once, encode records as deltas, and flag records whose fields match the master.
+- redis-074 | Compress cold interior data and keep the hot ends raw | In deque-like workloads only the head and tail are touched often; compress interior chunks and leave the N chunks at each end uncompressed.
+- redis-075 | Decode compact inputs once into a simple working format before combining them | When an operation merges or aggregates many compactly encoded inputs, unpack each into a byte-aligned scratch array first, then run the merge over that.
+- redis-076 | Start every element at the narrowest width and widen the whole array only on demand | Store integer arrays at the smallest width that fits all current values (16 bits) and upgrade the entire array to 32 or 64 bits only when a value that needs it arrives.
+- redis-077 | Share one refcounted stream buffer among many consumers | When N consumers need the same byte stream, keep one chain of refcounted blocks and give each consumer a cursor; free a block when the last consumer passes it.
+- redis-078 | Queue output in fixed-capacity chunks sized by the allocator, filled completely before adding another | Build output queues from fixed-minimum blocks (16 KB), record the allocator's real usable size as capacity, fill the tail block completely (splitting a write across blocks), then start a new one; copy small…
+- redis-079 | Size per-connection buffers from observed peaks, with hysteresis | Track each buffer's recent peak usage; shrink buffers much larger than the peak or idle, grow ones that saturate, within bounds, and reset the peak periodically.
+- redis-080 | Trim slack once a buffer is sealed or becomes long-lived, but only when the saving is real | Greedy growth leaves up to 2x slack; once a buffer can no longer be appended to, or is stored long-term, shrink it, but only when the waste is large enough that realloc actually moves to a smaller size class.
+- redis-081 | Gate large structure growth on the memory budget | Before doubling a huge table, ask a policy hook whether the new allocation fits the memory budget; allow it only if it fits or if the load factor is dangerously high, and size it to the next power of two…
+- redis-082 | Approximate large counters with a few bits: probabilistic logarithmic counting with lazy decay | Increment a small counter with decreasing probability (Morris counting) so 8 bits can represent millions of events, store it next to a coarse timestamp in existing header bits, and decay it lazily when the…
+- rocksdb-054 | Pack the fields the hot path reads together, and move the rest away | Group the data a hot loop actually touches into as few cache lines as possible: hot fields first, statistics and init-only fields last.
+- rocksdb-055 | Shrink hot objects: remove padding, drop derivable fields, share instead of copy | Order fields so the compiler inserts no padding, remove members that can be derived or held once elsewhere, and keep a pointer to shared configuration instead of a copy in every object.
+- rocksdb-056 | Prefer flat, contiguous containers over node-based ones | Store elements inline in one array (sorted vector, open-addressing table, packed record buffer) instead of one heap node per element (tree maps, chained hash maps, vectors of strings).
+- rocksdb-057 | Allocate the payload in the same block as the node that indexes it | Put the key bytes (or other payload) directly after the index node in one allocation instead of pointing from the node to a separately allocated payload.
+- rocksdb-058 | Separate what you search from what you return (struct of arrays) | Lay out the search keys contiguously and the payloads in a separate region, and deduplicate repeated keys, so a search touches only key bytes.
+- rocksdb-059 | Prefix-compress sorted keys, with restart points only where you need to seek | In a sorted run, store each key as (shared length, suffix) relative to the previous key, keep a full key every K entries so binary search still works, and store a prefix shared by the whole block only once.
+- rocksdb-060 | Index with the shortest key that separates two blocks, and nothing more | An index entry only needs some key between block A's last key and block B's first key.
+- rocksdb-061 | Don't store what the reader can predict | When a field follows from the previous entry (the offset of a block that starts where the last one ended), store only the unpredictable part (its size), with a full value at each restart point.
+- rocksdb-062 | Erase metadata no reader can tell apart, then exploit the constant | When a field no longer affects any reader (a version older than every snapshot), overwrite it with a constant.
+- rocksdb-063 | Compress only where the gain beats the CPU, and learn when it doesn't | Spend compression CPU only on data that is cold, long-lived and actually compressible: store raw when the ratio is poor, skip short-lived or latency-critical data, and track the observed payoff to stop trying…
+- rocksdb-064 | Treat the codec, its speed level and its API as tunable costs | Pick the compressor and its speed/ratio setting per workload, expose acceleration knobs, call the cheapest entry point for fast codecs, and give the compressor a fixed-size output buffer so poor results are…
+- rocksdb-065 | Prime small-block compression with a dictionary sampled from the data | Small blocks compress poorly on their own because the compressor starts with no history.
+- rocksdb-066 | Write down the sizes a reader would otherwise have to guess | Record lengths that the consumer needs (decompressed size, size of trailing metadata) at write time, so it can allocate once and read once instead of guessing and growing.
+- rocksdb-067 | Partition large metadata behind a small top level | Split a large per-file index into fixed-size partitions plus a tiny top-level index, keep the top level pinned, and cut each kind of metadata at its own target size.
+- rocksdb-068 | Add a tiny hash directory to sorted blocks for point lookups | Append a compact hash table that maps keys straight to a position in a sorted block, falling back to binary search on collision.
+- rocksdb-069 | Store a per-block summary in the index so data can be read later, or never | Keep enough about each data block in the index (its first key) that merges and range checks can be decided without loading the block.
+- rocksdb-070 | Pad blocks so no logical block straddles a physical unit | If the storage device reads in fixed units (4 KB pages, larger "super blocks"), pad the file so each logical block lies within one unit.
+- rocksdb-071 | Encode a sorted key set as a succinct trie | Represent index keys as a level-ordered bitmap trie with rank/select support, dense bitmaps near the root and sparse label arrays below, so seeks work directly on the compact encoding.
+- rocksdb-072 | Use a separate, flat format for data that lives entirely in memory | Formats built for disk (compressed blocks, restart points, a block cache) waste CPU when the data is fully RAM-resident.
+- seastar-037 | Shrink the structs you hold by the hundred thousand | Find the structs that exist in large numbers or sit on the hottest path.
+- seastar-038 | Store a value shared by many records once: interning and flyweights | When many records carry an identical composite (a label set, an owner pointer, a fat ID), keep one shared immutable copy and give each record a pointer or small handle to it.
+- seastar-039 | Pack the discriminant into values the payload can never take | If a field's legal values leave gaps (null, small integers that are never valid pointers, low bits that alignment leaves zero, padding), store the variant tag or a flag in those gaps instead of a separate…
+- seastar-040 | Link metadata with 32-bit indices instead of pointers | Inside a single array or arena, refer to other elements by a 32-bit index rather than a 64-bit pointer.
+- seastar-041 | Make stateless members occupy zero bytes | Members that carry no state (an empty tuple, a capture-less lambda, a policy or allocator object) should not take a byte plus padding inside the owning object.
+- seastar-042 | Keep big objects off small stacks, and size stacks to their need | In fiber or green-thread runtimes, give each stack only what its code needs, and move large buffers out of stack frames into members or one shared heap object.
+- snes9x-009 | Clear large tables row by row, on first use | Zeroing a big 2-D scratch table every pass touches memory that is mostly never used.
+- snes9x-019 | Maintain aggregates incrementally instead of rescanning | If a comparator or query recomputes a count by scanning the whole collection, a sort or save becomes O(n² log n).
+- snes9x-027 | Store snapshots as XOR deltas in a power-of-two ring buffer | Consecutive snapshots differ in only a few words.
+- snes9x-045 | Have the producer write straight into the consumer's ring buffer | A pipeline that renders into a staging buffer and then copies into a queue touches each sample twice and needs logic for partial copies and overflow.
+- snes9x-050 | Keep pixels in their native format all the way to the display | Each format conversion on the way to the screen (16→24 bit, byte swizzling) is a full pass over the frame in memory.
+- snes9x-051 | Wrap an existing buffer instead of copying into a library object | Many graphics APIs can build an image object over memory you already own, given a pointer, format and stride.
+- snes9x-058 | Fast state restore: load in place and invalidate only caches | A robust snapshot loader reads into temporary copies, resets everything, then copies back, which suits untrusted or partial loads.
+- snes9x-060 | Swap an overlay into memory on toggle instead of checking it on every read | If a small ROM or overlay sometimes shadows part of RAM, checking the overlay flag on every read taxes the common path.
+- snes9x-066 | Load and store whole words instead of assembling bytes | Building a 16-bit value with `p[0] | (p[1] << 8)` costs two loads, a shift and an OR.
+- snes9x-089 | Copy into a persistent output image instead of wrapping foreign memory | Wrapping a producer's buffer in a toolkit image object each frame couples their lifetimes.
+- snes9x-098 | Look up once and reuse the result | Calling `map.find(key)` several times on the same path repeats the hash or tree walk each time.
+- snes9x-102 | Cache a direct pointer to the current code page | If the program counter almost always stays inside one memory region, resolve that region to a raw host pointer once and index it directly.
+- snes9x-105 | Overlay byte and word views on one register | Model registers that are accessed both as a whole and in parts as a union whose layout follows host endianness.
+- snes9x-106 | Precompute shifted forms of registers | If a value is always used shifted or combined (bank << 16), store the shifted copy alongside it and update both on write.
+- snes9x-107 | Page table whose entries are either pointers or tags | Split the address space into fixed pages and keep one pointer per page.
+- snes9x-108 | Pre-bias base pointers so lookup needs no subtraction | When filling a translation table, store each entry already offset by the page's own base address.
+- snes9x-109 | Separate read and write translation tables | Keep distinct page tables for reads and writes.
+- snes9x-112 | Merge two narrow accesses when no boundary is crossed | A multi-byte read normally goes through the byte path twice.
+- snes9x-136 | Initialize large scratch arrays lazily, per row | Instead of clearing a big 2-D scratch array up front, keep a small per-row "touched" flag and clear a row the first time it is written.
+- snes9x-141 | Cache resolved pointers across repeated small transfers | If a stream of small accesses walks sequentially through memory, resolve the address to a host pointer once, advance the pointer, and invalidate it only when the walk crosses a region boundary or a slow case…
+- snes9x-158 | Pad the edges so the inner loop has no boundary checks | Write a temporary sentinel past the end of a row (duplicating the edge pixel), or allocate guard rows around a buffer.
+- sqlite-054 | Shrink hot structs: group fields by size and put hot fields first | Order fields so the compiler inserts no padding, put the fields the hot path touches (or copies, or must initialize) at the front, and move build-time-only or rarely used fields out of runtime objects.
+- sqlite-055 | Overlap mutually exclusive fields and move rare fields to side objects | If two fields are never valid at the same time, store them in a union with a tag.
+- sqlite-056 | Pack booleans into a flag word and size each field to its range | Store related booleans as bits of one integer, use the narrowest integer type that holds the field's real range, and group flags that are copied together so one assignment moves them.
+- sqlite-057 | Encode each stored value in the fewest bytes, and omit what can be inferred | Offer enough size classes that each value uses the smallest width that holds it, store sorted IDs as deltas, and leave out bytes the reader can reconstruct (terminators, counts, trailing defaults).
+- sqlite-058 | Use a flat, directly searchable representation instead of a pointer structure | Store data in a compact contiguous encoding that can be searched and edited in place, such as a sorted offset array inside a page or a binary document format, instead of building a linked or pointer-rich…
+- sqlite-059 | Choose array-of-structs or struct-of-arrays by access pattern | When an array's elements mix wide and narrow fields, split it into parallel arrays to eliminate per-element padding.
+- sqlite-060 | Derive redundant state instead of storing it | A field that can be computed from other fields has to be kept in sync on every write.
+- sqlite-061 | Use one bit per item when only membership matters | If a per-item array only records "seen" or "not seen", store a bitmap instead of a counter or pointer per item.
+- sqlite-062 | Store small values inline instead of in a side allocation | If a value fits in fields the object already has, encode it there (an integer in the node's value slot, a 64-bit constant split across two 32-bit operands) instead of pointing to a separately allocated copy…
+- sqlite-063 | Keep only the shortest distinguishing key in interior index nodes | An interior node of a search tree only needs a key that separates its children.
+- sqlite-064 | Use alignment padding as scratch space | Alignment holes in a struct are free storage.
+- tokio-031 | One allocation per object, hot fields first, cold fields last | Put everything an object needs into one contiguous block.
+- tokio-032 | Pack an object's flags, counters and generation into one machine word | When several small fields describe one object's state, bit-pack them into a single word.
+- tokio-033 | Encode "absent" and special states in values the field can never hold | If a field's valid range leaves some values unused (zero, MAX, MAX-1), use those values to mean "none", "pending" or "dead".
+- tokio-034 | Shrink the handle users embed; keep data in the shared node | Handles that users store in their own structs or futures are multiplied by every instance.
+- tokio-035 | Store each fact once; derive or read it from its single owner | Remove fields that mirror state already tracked elsewhere: in another struct, at a coarser level, or by a lower layer.
+- tokio-036 | When the key set is fixed and small, use a fixed array or plain fields | A generic registry (a heap slice or map behind a trait and an id type) is overkill when the set of keys is known at compile time.
+- tokio-037 | Keep big values off the stack: heap-allocate early and construct in place | Large values passed by value through several call frames multiply stack use and memcpy cost.
+- tokio-038 | Coalesce per-thread state into one constant-initialized context | Group all per-thread runtime state into one struct in one thread-local slot, and give it (and other globals) a compile-time constant initializer instead of lazy init.

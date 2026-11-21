@@ -1,0 +1,69 @@
+# Lens: other (63 techniques)
+
+Techniques that fit no other lens.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-009 | Ship several fidelity tiers of the same component | When exactness and throughput conflict, keep an exact implementation as the reference and add faster approximations behind a build or runtime switch.
+- ares-083 | Move the loop inside the callee | When a dispatcher calls a component repeatedly until the component is "caught up", put that loop inside the component.
+- ares-090 | Offer an opt-in coarse mode that batches fine-grained steps | When precision costs a lot and only some users need it, make it a switch.
+- ares-097 | Store a counter in the unit its hottest consumer uses | If a counter is converted on every read in a hot loop, for example multiplied by a clock ratio, store it already scaled.
+- ares-137 | Strip diagnostic counters out of the hot path once tuning is done | Counters that are incremented in the dispatcher and in generated code cost memory traffic and code size on every block.
+- dolphin-037 | Hoist expensive lookups out of hot paths | Singleton accessors, plugin registries, symbol-table lookups and OS time calls look cheap at the call site but can involve locks, maps or syscalls.
+- dolphin-048 | Replace a general math call with its special case | Library functions like `pow` handle arbitrary exponents with logs and exponentials.
+- dolphin-051 | Suspend redraws and narrow scans during bulk UI work | Inserting thousands of items into a visible widget can trigger a layout and repaint after each insert.
+- dolphin-079 | Make sure one-time initialization really runs only once | A "build the table if it is empty" guard that tests a table entry can fail silently when that entry is legitimately zero after the build, so the table is rebuilt on every call.
+- dolphin-092 | Recognize busy-wait loops and fast-forward through them | Code that spins on a status register burns host time without changing anything.
+- dolphin-094 | Put costly accuracy behind per-workload switches | When a faithful but slow code path matters to only a few inputs, make it opt-in per item, with the fast approximation as the default.
+- dolphin-107 | Skip output-only work when a generator runs just to compute a key | When one routine both computes a cache key and emits the artifact, the key-only pass runs on every lookup, so any string formatting, canary checks or driver queries it performs are pure waste.
+- dolphin-122 | Pay for debugging hooks only when they're used | Debug support can quietly tax every user.
+- dolphin-189 | Hoist per-iteration setup and teardown out of the loop | If a loop body saves and restores some state, or takes a lock and checks status, on every iteration, and nothing between iterations needs the restored state, do it once around the loop.
+- dolphin-221 | Stay in integer arithmetic when the range allows it | Converting small integers to float to subtract, square and accumulate costs conversions and float latency.
+- dolphin-230 | Recognize operations that are no-ops and emit nothing | Some general operations reduce to nothing, or to something trivial, for particular operands: OR with zero into itself, a blend that keeps the destination, a filter tap whose weight is zero.
+- dolphin-234 | Fire change notifications once per transaction | If a save touches N sub-stores and each one notifies listeners, the listeners run N times for one logical change.
+- dolphin-280 | Use the lightweight UI component for append-only text, and bound it | Rich-text widgets keep a full document model and re-layout costs grow as content grows.
+- duckstation-033 | Use fixed-point arithmetic instead of float round trips | Converting integers to float and back for a multiply costs conversions, rounding logic and branches.
+- duckstation-043 | Apply targeted updates instead of re-running global reconfiguration | Routing a frequent UI control through a generic "settings changed" path can rebuild or re-check many subsystems on every tick of the control.
+- duckstation-056 | Make rarely needed exactness opt-in | If a correctness guarantee matters only to edge cases that real workloads never hit, turn it off by default and keep it behind a setting.
+- duckstation-183 | Skip presenting frames that didn't change | If the producer hasn't generated a new frame, presenting the old one again costs GPU and compositor time for no visible change.
+- duckstation-223 | Track dirtiness so flushes and resets happen only after real changes | Writing a settings file, resetting a descriptor pool or interrupting execution on every "apply" wastes I/O or driver work when nothing changed.
+- duckstation-224 | Make disabled diagnostics nearly free | Logging and debug markers sit on hot paths.
+- duckstation-266 | Give the renderer data in its native format | 2D rasterizers have fast paths for particular pixel formats, such as opaque `RGB32` instead of `ARGB32`.
+- duckstation-300 | Use invariants to pick a cheaper equivalent operation | Signed division by a power of two needs a rounding fixup for negatives, but if negatives get clamped to zero afterwards, an arithmetic shift gives the same result.
+- flycast-068 | Hoist invariant work out of per-item paths | Values that don't change across a loop or across calls, such as register reads, logarithms, bit masks and one-time hints, should be computed once outside.
+- flycast-088 | Remove console and UI side effects from hot paths | A `printf` in a frequently executed handler serializes on stdout and can cost far more than the work around it.
+- flycast-172 | Scoped profiling that compiles out | Put RAII scope timers around frame stages (process, render, present) so that slow frames can be attributed to a stage.
+- flycast-227 | Short-circuit hot guest system calls at a magic address | When a guest OS calls a known service through a fixed entry point, the emulator can intercept it at dispatch and compute the answer natively, skipping thousands of emulated instructions.
+- melonds-007 | Update each component only as often as its precision requires | Split periodic work into tiers by how fine-grained its observable effect is.
+- melonds-008 | Hoist per-step bookkeeping out of the inner loop into batches | Side work that only has to be correct at slice boundaries shouldn't run on every iteration.
+- melonds-054 | Do nothing when nothing is happening | Idle work burns CPU and battery and steals time from the threads that matter.
+- melonds-112 | Present no more often than the display can show | When simulation outpaces the screen, as in fast-forward or unthrottled mode, drawing every produced frame wastes CPU and GPU on frames the monitor never displays.
+- melonds-113 | Pace frames with a high-resolution clock and carried-over error | Frame limiters built on millisecond ticks and ad-hoc resyncs either oversleep (stutter) or busy-spin.
+- melonds-119 | Make generated code visible to your profiler | Sampling profilers attribute time by mapping instruction addresses to symbols.
+- melonds-131 | Check a cheap precondition before an expensive call that will fail | Some API calls are slow even when they fail: device enumeration, driver round trips, timeouts.
+- mesen2-065 | Replace a general-purpose hook with a dedicated countdown | A generic instrumentation hook can force an interpreter onto a slower dispatch path for every instruction.
+- mesen2-078 | Throttle refresh rates and redraw only when something can change | Periodic redraws should depend on whether anything changed.
+- mesen2-079 | Delay a state toggle that usually reverts right away | If an action flips UI state and the opposite action usually follows within milliseconds (resume, then break again when stepping), wait a short time before applying the change and drop it if it has already…
+- mesen2-080 | Keep heavy views mounted and resize them instead of remounting | If a complex control is expensive to create and lay out, toggling it in and out of the visual tree with tabs repeats that cost on every switch.
+- mesen2-081 | Give virtualized lists their real height on the first measure | A virtualizing list creates as many rows as fit in the height it is measured with.
+- mesen2-116 | Compile out parts of a general library your target never uses | A third-party core written for a superset device runs every channel and feature on every sample.
+- mgba-046 | Hot interfaces should return native width; transform at the call site | Rather than multiplying virtual entry points by signedness and width, expose a few functions that return full-width values and do cheap sign extension or masking in the caller.
+- mgba-180 | Fold adjustments that cancel out; skip single-use temporaries | In hot functions, remove pairs of `+1`/`-1` that cancel each other, and don't precompute a value that is used only once.
+- pcsx2-026 | Keep diagnostics and safety checks out of the release hot path | Infinite-loop detectors, debug fills and trace logging are useful during development, but in release builds they cost branches, calls and stores on every execution.
+- pcsx2-047 | Put expensive accuracy work behind tiered settings | Some correctness work, such as extra clamping, exact cycle accounting or register caching that was assumed to be faster, costs a lot and matters only for a few workloads.
+- pcsx2-078 | Make disabled logging cost nothing, arguments included | A log call that is disabled at runtime still evaluates its arguments, which may format strings or dump structures, before it bails out.
+- pcsx2-089 | Precompute derived values at decode time | If a hot loop keeps re-deriving a value from a header field (with a test, a mask or a count), compute it once when the header is decoded and store it beside the header.
+- pcsx2-134 | Built-in, switchable profiling and repeatable replay benchmarks | Optimisation needs numbers that are cheap to get and repeatable.
+- pcsx2-152 | Offer a cheaper approximation as the default tier | An all-or-nothing accuracy switch makes users choose between wrong results and slow ones.
+- pcsx2-192 | Make generated code visible to the profiler | Sampling profilers can't name code produced at run time, so JIT hot spots show up as unknown addresses.
+- pcsx2-231 | Delete duplicate reads, moves and notifications | Code collects repeats: a table re-read that a callee already performs, a value copied through a temporary register, a cross-thread update sent once per element when once per packet would do.
+- pcsx2-242 | Patch the workload's own busy-wait loops | Sometimes the cost lives in the program being run: spin loops that wait on timing, which are cheap on the original hardware and expensive to simulate.
+- pcsx2-243 | Measure at thread granularity, not per operation | Timing every operation with `rdtsc` start/stop pairs adds overhead to the hot path.
+- ppsspp-024 | Skip checked lookups for handles you already trust | Generic handle lookups validate the ID and do a type check (`dynamic_cast`/RTTI) every time.
+- ppsspp-026 | Gate diagnostics behind a cheap check | Timers, name lookups and log formatting in hot paths cost real time even when their output is discarded.
+- ppsspp-064 | Stay in the fast loop for common control-flow events | If an inner loop exits to an outer scheduler to “recalculate” on an event you assumed was rare, measure whether it really is.
+- ppsspp-071 | Recognize an idiom and handle it in bulk | If inputs often contain the same recognizable sequence, such as a subroutine that just loads a matrix, check for that exact shape cheaply and run a specialized bulk routine.
+- ppsspp-076 | Cap expensive optional work per frame and defer the rest | In a real-time loop, spikes hurt more than throughput lost on average.
+- ppsspp-113 | Hysteresis: stop optimizing data that keeps changing | An expensive enhancement step (scaling, compressing, indexing) pays off only if the result is reused.
+- ppsspp-136 | Skip per-item teardown when the whole set is discarded | When you destroy everything at once, per-item cleanup that only keeps the remaining items consistent, like unlinking neighbors or fixing references, is wasted.
+- snes9x-015 | Check output quality before replacing floating point with fixed point | Fixed point can be faster on FPU-poor hardware, but each multiply-and-shift loses precision.

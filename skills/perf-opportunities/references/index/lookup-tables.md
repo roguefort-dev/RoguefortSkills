@@ -1,0 +1,100 @@
+# Lens: lookup-tables (94 techniques)
+
+Precomputed tables, decode tables, dispatch tables, table-driven logic.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-014 | Precompute color transforms into tables | When a per-pixel transform depends on a small input domain and a few settings, tabulate it for every input.
+- ares-019 | Flatten address decoding into direct-indexed tables | Replace a search over mapped ranges with a precomputed table indexed by the full address, storing a handler id and a translated offset.
+- ares-027 | Pre-decode every opcode into a table of bound handlers | For an instruction set whose encoding packs operands into the opcode, enumerate every opcode once at startup and store a handler with its operands already decoded.
+- ares-072 | Generate lookup tables at startup from the formula | Per-sample interpolation needs coefficients that are expensive to compute but fixed.
+- ares-073 | Table-driven translation with a likely fast path for the common mode | For address or permission translation, index a small precomputed table by the top bits and return it directly in the common mode.
+- ares-140 | Precompute resampling weights once | Resampling weights depend only on the source and destination sizes, not on pixel data.
+- ares-161 | Map native pixel formats to output through a precomputed palette | Cores emit compact native color codes. A lookup table built once, and rebuilt only when color settings change, converts each code to ARGB8888 with one load per pixel.
+- ares-164 | Dispatch every opcode word through a full-size handler table | For a 16-bit instruction set, a 65,536-entry table of prebound handlers turns decoding into a single indexed call.
+- dolphin-002 | Store the cache index in the source slot itself | If every lookup key is a location you control, write a tag plus the entry's index into that location when the entry is created.
+- dolphin-029 | Fold constant offsets into the lookup table | If every use of a table entry adds the same constant, add it once when building the table.
+- dolphin-031 | Compute small conversions with shifts instead of tables | A tiny lookup table still costs a memory load and cache space.
+- dolphin-065 | Replace per-call reciprocal math with a constant table | A value that depends on a small integer, such as `1.0f / (1 << n)`, costs an int-to-float conversion and a divide each time it is computed.
+- dolphin-080 | Precompute per-address analysis flags and test them in the hot loop | Facts about static code or data, such as "a loop ends here", "this is an idle loop" or "this uses the FPU", can be computed once in an analysis pass and stored as flags.
+- dolphin-275 | Build dispatch and size tables at compile time, and inline the lookups | A table built by an init function costs startup time, needs ordering care, and stops the compiler from treating its entries as constants.
+- dolphin-284 | Direct-mapped table over a sparse key space, backed by lazily committed memory | If keys are bounded integers, a table indexed by the whole key needs no tag compare, no masking and no collision handling: a hit is one load.
+- duckstation-050 | Use a software page table where you can't remap memory | If the platform can't reserve or remap address space (32-bit hosts, restricted OSes), a flat table of per-page host pointers is the next best thing.
+- duckstation-065 | Precompute derived masks when state is written, not when it is read | If a configuration value is written rarely but read for every pixel or element, do the arithmetic in the setter.
+- duckstation-099 | Two-level sparse table with pre-biased pointers | A flat table covering a huge, sparse key space wastes memory, and folding several regions into it needs compares and conditional moves.
+- duckstation-133 | Route address-decoded accesses through a per-page handler table | Replace a cascade of range comparisons (`if addr < X … else if …`) with an array of function pointers indexed by `addr >> PAGE_SHIFT`.
+- duckstation-219 | Size lookup tables to the reachable key space | A direct-indexed table that covers address ranges which can never hold valid keys wastes memory and page-table entries.
+- duckstation-278 | Replace a register-select switch with a table of (pointer, mask) pairs | When each case of a switch just reads or writes a different variable, and maybe applies a mask, put that variable's address and its mask in a constexpr table indexed by the selector.
+- duckstation-279 | Put per-opcode metadata next to the handler pointer in a constexpr table | If every handler starts by checking "do I have enough input yet?" against a per-opcode constant, store that constant in the dispatch table beside the function pointer.
+- duckstation-339 | Two-level page tables of function pointers for address-keyed dispatch | Look up "what code runs at address X" or "which handler serves address X" with a two-level table: top bits select a table, low bits select a slot.
+- flycast-023 | Direct-mapped address-to-handler table | To find the compiled code for an address, index a flat array by the address itself (shifted by the instruction alignment and masked), rather than searching a map.
+- flycast-030 | Decode every 16-bit pixel format through a 64K-entry table | A 16-bit packed value has only 65,536 possible values.
+- flycast-051 | Fetch sine and cosine from a precomputed table | When the angle input is a small fixed-point integer, a table indexed by that integer can store sin and cos side by side.
+- flycast-072 | Replace a fitted approximation with a texture lookup | If a curve is defined by a table, fitting an analytic function to it on the CPU and evaluating that function per pixel is both slow and inexact.
+- flycast-106 | Cache the last translation in front of a slow lookup | Accesses cluster on a few pages. A tiny cache of the last virtual-to-physical page pairs, checked with one compare, skips the full associative search most of the time. Invalidate it whenever the mapping…
+- flycast-107 | Flat page table for translation, with partial flushes | A directly indexed array (vpn → physical page) turns translation into a shift and a load that generated code can inline.
+- flycast-115 | Collapse a family of lookup tables into one | If several tables differ only by a shift or a size parameter, keep one table and derive the variants with cheap arithmetic.
+- flycast-166 | Dispatch through per-entry function pointers instead of flag tests | Give every entry in a table (here, hardware registers) its own read and write function pointers, defaulting to a plain storage accessor or an “invalid” stub.
+- flycast-213 | Table-driven state machine with a "slow path" bit | Pack the current state and the relevant input bits into one index, and store the next state plus a "needs handling" flag in a byte table.
+- flycast-216 | Separable lookup tables for bit-interleaved addressing | Morton (Z-order) addresses interleave the bits of x and y.
+- flycast-224 | Full-width opcode dispatch table and timeslice batching | With 16-bit opcodes, a 65,536-entry table of handler pointers decodes any instruction with one load.
+- flycast-225 | Precomputed table for a transcendental instruction | The guest's sine/cosine instruction takes a 16-bit angle, so all of its results fit in a 65,536-entry table.
+- melonds-001 | Truth-table bitmask for multi-bit predicates | When a yes/no answer depends on a small number of state bits, precompute one integer per predicate in which bit n holds the answer for state n.
+- melonds-002 | Decode once into a dense function table indexed by opcode bits | Pick the few instruction or message bits that determine behaviour, pack them into an index, and use it to look up a handler in a table.
+- melonds-034 | Tabulate small periodic waveforms | If a signal's value is a simple function of a small phase index and a small parameter, store every combination in a table.
+- melonds-070 | Put a small lossy cache in front of an authoritative map | A flat array indexed by every possible key is fast but huge.
+- melonds-092 | Direct-mapped lookup tables instead of hashing for dense keys | When keys are addresses inside a few known, bounded regions, a hash map spends time hashing and probing.
+- melonds-108 | Precompute fixed-point weight tables for interpolation | Interpolation kernels such as cosine and cubic evaluate transcendental or polynomial functions of the fractional position.
+- melonds-125 | Convert a small palette once, then index it per pixel | If every pixel looks up one of K colours and then converts it, do the conversion K times up front and keep the results in a table.
+- melonds-126 | Build lookup tables at compile time with constexpr | If a table is computed at runtime, you pay an init call and an "initialised yet?" flag check, and you can't make the table `const`.
+- melonds-163 | Condition evaluation through a 16×16 truth-table bitmask | Testing a 4-bit condition code against 4 flag bits with a switch is a branch that mispredicts often.
+- mesen2-001 | Replace range-check cascades and switches with a precomputed table | When a function maps a small key to a result through a chain of comparisons or a big switch, compute every answer once at startup and store it in an array.
+- mesen2-049 | Coarse presence table in front of an expensive lookup | When only a few keys in a large space have a handler, keep a small boolean array indexed by a coarse part of the key, such as the high bits.
+- mesen2-053 | Flatten multi-step decode into tables indexed by a combined key | If a value comes from a nested table lookup followed by scaling or sign extension, pack the inputs into a single small index and precompute the final answers.
+- mesen2-074 | Precompute reflection metadata once per type | Reflection lookups such as reading custom attributes off enum values are slow and allocate.
+- mesen2-119 | Skip identity transforms when building lookup tables | When user settings are at their neutral values, the color-adjustment math is a no-op that can still introduce rounding errors.
+- mesen2-149 | Precompute a polyphase filter-coefficient table | Windowed-sinc interpolation is expensive to compute per sample.
+- mesen2-156 | Precompute per-region access costs into a small table | If a cost depends on a handful of address bits plus a mode, compute it for every combination once, and again only when a configuration register changes.
+- mesen2-166 | Replace number-to-text conversion with a 256-entry string table | Formatting bytes as hex in a hot loop with general-purpose formatting is slow.
+- mesen2-167 | Precompute a full color-space conversion table | If a filter compares colors in a perceptual space for every pixel and every neighbour, convert each possible RGB value once at startup.
+- mgba-001 | Dispatch through a small table keyed on the opcode bits that matter | Replace a decode tree with a function-pointer table indexed by only the distinguishing bits, and make each entry a handler that is already specialized.
+- mgba-016 | Transform at write time, not read time | If an input changes rarely but is read constantly, precompute its derived forms when it is written.
+- mgba-062 | Pre-render static drawables and cache them by input | Do text layout, shaping and multi-pass rendering once, and invalidate only when the inputs change.
+- mgba-084 | Invalidate many cache entries at once with version counters | Don't walk every dependent entry to clear a flag.
+- mgba-138 | Truth-table bitmask instead of a switch | When a yes/no answer depends on a few bits of state, precompute the full truth table as one integer and test it with `table[key] & (1 << state)`.
+- mgba-150 | Compute derived state when inputs change, and put the slowest-changing loop outermost | Values derived from configuration should be computed when the configuration is written, not each time they're used.
+- mgba-157 | Divide by multiplying with a reciprocal, then shift | Integer division is slow on CPUs and very slow on GPUs.
+- mgba-181 | Encode rarely-changing state as a bitmask; answer hot queries with mask & table[phase] | When a costly predicate depends on state that changes rarely, decode that state into a bitmask once per change.
+- mgba-183 | Advance bit-serial recurrences k bits at a time with a 2^k table | An LFSR, a CRC or a bitstream decoder stepped one bit at a time forms a long dependency chain.
+- mgba-219 | Dispatch through a dense table of fully specialized handlers | For a dense opcode space, index a precomputed array of handler functions with the opcode bits.
+- mgba-220 | Evaluate small boolean functions with a truth-table bitmask, common case first | Represent a predicate over a few input bits as a bitmask indexed by the input.
+- mgba-229 | Transform the small lookup table, not every element that indexes it | Apply a colour or style transform to the palette when the palette or the transform parameter changes.
+- pcsx2-031 | Precompute offset tables for swizzled or tiled addressing | Addressing tiled or swizzled memory involves bit shuffling for every pixel.
+- pcsx2-043 | Pad a handler table to the full index range to drop the range check | Dispatching through a small table means bounds-checking the index first.
+- pcsx2-099 | Precompute ownership instead of dividing per query | A modulo by a runtime value compiles to a hardware divide, which costs tens of cycles.
+- pcsx2-110 | Direct-indexed arrays for small key spaces | When a key has only a few bits, such as a shader-variant selector, a plain array indexed by the key beats a hash map.
+- pcsx2-166 | Replace a large switch with a lookup table built once | A long switch over a dense key range compiles into chains of comparisons or a jump table plus code for each case.
+- pcsx2-267 | Memoize the result of a brute-force geometric search | If an offset is found by scanning a 2-D grid until an address matches, and the same pairs of surfaces come up again and again, cache the answer keyed on both surfaces' parameters.
+- pcsx2-289 | Store hash chains as contiguous arrays ended by a sentinel | A linked hash chain costs a cache miss per hop.
+- pcsx2-296 | Index cached surfaces by memory page | To find which cached textures a memory write invalidates, keep one list of surfaces per page of guest memory.
+- ppsspp-062 | Precompute shift/mask pairs for table-driven decoding | A decoder that walks nested tables should store each level's field extraction ready to use: a shift and a ready-made mask, not a bit count to turn into a mask each step.
+- ppsspp-083 | Prefer branch-free arithmetic to a large lookup table | A lookup table looks free, but a big one evicts useful data from cache and gathers poorly into SIMD lanes.
+- ppsspp-095 | Table-driven side effects instead of per-entry callbacks | When most handlers in a dispatch table only mark something dirty, store the dirty mask as data in the table.
+- ppsspp-141 | Precompute a full lookup table for a pure function of a small key | If an expensive pure function depends on a few bytes of input, tabulate every value once.
+- ppsspp-156 | Memoize parameter-only tables | If an expensive table depends only on a few small parameters, pack those parameters into an integer key and cache the table in a map.
+- ppsspp-212 | Reuse uploaded resources by content hash | When identical data is uploaded repeatedly, hash it and look for an existing resource with the same hash and shape before uploading again.
+- ppsspp-213 | Flat hash tables and cheap hashes for small keys | `std::unordered_map` allocates a node per entry and follows a pointer on every lookup.
+- ppsspp-214 | One-entry “last lookup” cache in front of a locked map | Lookups often repeat the previous key. Remember the last key and result, and compare against them before taking the lock and probing the map. Make the memo `thread_local` so it needs no atomics or locking.
+- snes9x-026 | Precompute a function over the full input range of a quantized difference | When a costly function (sqrt of a weighted sum) depends only on a few small integer inputs, tabulate it for every input once at startup.
+- snes9x-032 | Fold a clamp into a small lookup table | If a value is added and then clamped to a ceiling that changes rarely, build a table indexed by the unclamped sum that already holds the clamped result.
+- snes9x-093 | Precompute filter weights per output phase in fixed point | For integer-ratio upscaling, each output pixel lands at one of only scale² fractional positions.
+- snes9x-103 | Check a block boundary once per item, not once per byte | If a variable-length item might straddle a buffer boundary, look up its length in a table and test the boundary once before decoding.
+- snes9x-123 | Spread bits with a nibble lookup table | To turn bit-planar data into packed per-pixel values, precompute a table that maps each 4-bit nibble to four bytes with that plane's bit in the right position.
+- snes9x-131 | Whole-value lookup tables for awkward per-channel ops | When an operation on a packed 16-bit value is hard to express branch-free, precompute its result for all 65536 inputs (or for a small sum range) once.
+- snes9x-132 | Keep palettes pre-converted to the output format | Convert source colours to the final display format, with global adjustments like brightness already applied, when the palette or the adjustment changes.
+- snes9x-144 | Split bit permutations into per-byte lookup tables | An arbitrary bit permutation of a 16- or 32-bit word decomposes into one table per input byte, combined by addition or OR.
+- snes9x-145 | Fold prefix state into the dispatch index | When prefix instructions change how the next opcode behaves, OR the prefix bits into the dispatch index and use a larger table.
+- snes9x-147 | Precompute row and column base addresses for tiled layouts | For a framebuffer stored in an irregular tiled layout, precompute arrays of base addresses per tile row and per tile column whenever the layout changes.
+- snes9x-148 | Fixed-point trig from quantized angle tables | When angles come from a small integer domain, store sin/cos in fixed-point tables indexed by angle.
+- snes9x-160 | Pack derived values into one word and compare lanes | Precompute a costly per-colour transform (RGB to YUV) for every input value, packed into one integer.
+- snes9x-162 | Precompute linear-filter responses per input value | If a filter is linear, its output is a sum of each input sample's response.

@@ -1,0 +1,93 @@
+# Lens: platform (87 techniques)
+
+OS- and hardware-specific features, per-platform paths, power and mobile constraints.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-059 | Target a portable JIT IR instead of one host ISA | A JIT written straight to x86 encodings runs at interpreter speed on every other CPU.
+- ares-098 | Keep JIT code close to the executable | Branches between generated code and the host binary predict and encode best when the two are within short range of each other: about 128 MiB for direct branches on ARM64, and similar limits for branch…
+- ares-100 | Reference-count nested protection toggles | When code paths that each flip a global mode, such as a page's write/execute permission, can nest, keep a thread-local depth counter.
+- ares-131 | Store emulated flags in the host's bit layout | Lay out the emulated status bits to match the host register's bit positions.
+- dolphin-095 | Let the real-time callback pull data directly | An extra thread that fills a buffer the audio callback then copies adds a hop, a copy and latency.
+- dolphin-096 | Pin heavy threads to distinct physical cores | On SMT CPUs, logical cores 2n and 2n+1 often share one physical core's execution units.
+- dolphin-130 | Back shared memory mappings with a RAM filesystem | Mapping a file from a disk-backed directory to get shared memory can cause the kernel to write the pages back to disk.
+- dolphin-132 | Keep JIT tables within reach of short addressing | On x86-64, code can reach data with a 32-bit absolute or RIP-relative displacement only if the data is within about 2 GB.
+- dolphin-184 | Swap in a native primitive when the portable one is slow on a platform | Standard-library primitives vary widely in quality between implementations.
+- dolphin-190 | Retire hand-tuned routines once the platform library is better | Copy and compare routines tuned for one old CPU family end up slower than the toolchain's `memcpy`/`memcmp`, which modern compilers inline or dispatch per CPU.
+- dolphin-201 | Pick the shortest encoding for constants and idioms | Code generators should choose the cheapest form for each operation: a 32-bit move when the upper half is zero, a sign-extended 32-bit immediate, `xor r,r` for zero, `lea` for add-and-move, and the negated…
+- dolphin-202 | Use bitfield and combined-logic instructions | Modern ISAs have single instructions for patterns that otherwise take three or four: and-not, bitfield extract/insert, logical ops with encoded immediates, scaled LEA for shift-and-add.
+- dolphin-249 | Choose code paths by measured speed, not only by whether a feature exists | "The CPU supports instruction X" doesn't mean X is fast.
+- dolphin-300 | Coalesce adjacent OS mappings into one call | Each mmap or MapViewOfFile call has a fixed kernel cost, and that cost is large on some OSes.
+- duckstation-015 | Use the modern presentation model and allow tearing when unsynced | Legacy blit-model presentation adds a copy and extra compositor latency.
+- duckstation-016 | Keep debug layers and validation out of release runs | API debug callbacks, validation layers and debug devices check every call and can cut throughput several-fold.
+- duckstation-034 | Use bit-scan intrinsics instead of bit loops | Counting leading zeros or ones with a loop costs up to 32 iterations, and each one is a branch.
+- duckstation-044 | Raise OS timer resolution for sleep-based pacing | On Windows the default timer granularity is about 15.6 ms, so `Sleep(1)` can oversleep by a whole frame.
+- duckstation-084 | Pace frames against absolute deadlines with precise sleeps | "Sleep for the remaining time" accumulates drift, and default OS sleeps round up to whole milliseconds.
+- duckstation-086 | Pin the critical thread to dedicated cores | On big.LITTLE and mobile SoCs, the scheduler may migrate a latency-critical thread onto a slow core or share its core with background work.
+- duckstation-114 | Choose transfer paths per driver based on measurements | The "fast" upload or readback path in an API spec is not fast on every driver.
+- duckstation-117 | Hit precise deadlines by sleeping first and spinning at the end | OS sleep timers routinely wake up late by anywhere from a fraction of a millisecond to several.
+- duckstation-156 | Compile hot kernels per ISA and pick one at startup | Build one source file several times with different `-m` flags, each into its own namespace, and export a table of function pointers from each.
+- duckstation-182 | Tell the scheduler your deadline, and throttle before presenting | On OSes that schedule by load heuristics, a periodic real-time workload gets inconsistent timeslices.
+- duckstation-191 | Compile the hot kernel once per ISA and dispatch at startup | Baseline builds can't assume AVX2. Compile the hot module several times into separate namespaces with different target flags, detect the CPU once, and install function pointers to the best variant. The cost…
+- duckstation-254 | Choose the fastest equivalent API per driver | Two API calls that do the same thing can differ several times in speed on a particular vendor's driver.
+- duckstation-257 | Keep expensive system handles alive, and update them in place | Driver instances, audio contexts and similar handles are slow to create and sometimes leak when destroyed.
+- duckstation-268 | Poll inputs only when something consumes them | High-rate sources such as gyros, accelerometers and sensors cost CPU and bus bandwidth even when nothing reads them.
+- duckstation-309 | Compile one hot file at a higher ISA level and select it at runtime | Keep the baseline binary portable, but build the hot kernel a second time with `-mavx2` (or `/arch:AVX2`) in its own namespace.
+- duckstation-338 | Place the JIT code buffer near the executable so calls stay short | Direct branches and calls have limited range (±32 MB on ARM32, ±128 MB on ARM64, ±2 GB rel32 on x64).
+- flycast-026 | Allocate generated code near the binary | On x86-64, direct calls and jumps reach only ±2 GB.
+- flycast-035 | Put the FPU in fast mode and reprogram it only when the mode changes | On many CPUs, denormal operands send floating-point instructions down a slow microcode path.
+- flycast-065 | Choose instructions by runtime CPU feature detection | Fused multiply-add, horizontal adds and wider vectors save instructions, but not every CPU has them.
+- flycast-132 | Present without vsync when running uncapped | Vsync caps output at the display rate. In a fast-forward or benchmark mode, switch the swap interval or present mode to immediate so the producer is not throttled.
+- flycast-135 | Detect CPU features at runtime before emitting newer instructions | Use a single fused instruction (here BMI1 `andn`) when the CPU supports it, and fall back to an equivalent sequence otherwise.
+- flycast-152 | Change driver state only when it actually changes | Calls such as setting the swap interval go through the driver and can flush or synchronize.
+- flycast-153 | Ask the OS for the fast GPU explicitly | On hybrid-graphics laptops, the default adapter is often the integrated GPU.
+- flycast-191 | Test feature macros by value, not by existence | SDK headers often define platform macros on every target, set to 0 or 1.
+- flycast-199 | Use the non-blocking present mode the swap chain offers | For uncapped speed (fast-forward, vsync off), presentation must not block on the display.
+- melonds-077 | Keep hot globals in the low 2 GB so generated code can address them directly | On x86-64, a memory operand carries only a signed 32-bit displacement.
+- melonds-089 | Use page protection as a write barrier for cached derived data | If you cache something derived from memory, such as compiled code or a parsed structure, you need to know when the source changes.
+- melonds-123 | Count set bits with a popcount intrinsic, not a loop | Counting the bits of a mask with a loop of shift-and-test costs up to N iterations and N branches.
+- melonds-142 | Reserve address space up front, commit views on demand | To map emulated or arena memory at fixed offsets, first reserve a large contiguous virtual range with no access (`PROT_NONE` mmap, or Windows placeholders), then map file views into slots of it as needed.
+- mesen2-016 | Replace virtual dispatch with static polymorphism (CRTP) | A virtual call in the hottest function blocks inlining and costs an indirect branch per call.
+- mesen2-102 | Use the OS's native text-conversion API instead of a generic locale facet | Standard library conversion facets such as `std::wstring_convert`/`codecvt` are general, deprecated, and often slow.
+- mesen2-121 | Don't route rendering through an indirect or remoted graphics path | Indirect GL rendering, which serializes every GL call through the X server, avoids some driver bugs but costs far more CPU per frame.
+- mgba-024 | Hand-tuned bulk-transfer and SIMD kernels for weak targets | For the few kernels limited by memory bandwidth, use the ISA's load-multiple or SIMD instructions behind a feature check and keep a portable fallback.
+- mgba-071 | Raise performance states only during heavy work | Request higher CPU clocks or turbo modes only while the expensive workload runs, and drop back when idle to save power.
+- mgba-090 | Write overflow checks in a form the compiler maps to the carry flag | Compilers recognise idioms like `UINT_MAX - a < b` or `a + b < a` as the carry-out of an add and emit a single flag instruction.
+- mgba-096 | Claim opt-in hardware resources and pin latency-critical threads | On fixed hardware, extra cores, caches and clock modes are often off unless you request them.
+- mgba-098 | Choose cheaper algorithm variants per platform at compile time | On the weakest target, trade fidelity you can't perceive for CPU time by swapping in a cheaper variant at build time.
+- mgba-142 | Use bit intrinsics instead of bit loops | popcount, clz/ctz and bswap are single instructions on most CPUs, and have branch-free SWAR fallbacks elsewhere.
+- mgba-184 | Use hardware bit-scan intrinsics, with a compact table fallback | Count-trailing-zeros, popcount and byteswap are single instructions on modern CPUs.
+- mgba-213 | Block on vsync only when you want pacing, and cache driver state | A swap interval of 1 limits frame rate to the display's refresh rate.
+- mgba-224 | Hide byte order behind macros that compile to the host's native swapping load | Accesses in a foreign byte order should compile to a single instruction on every host: a plain load when the orders match, otherwise a bswap intrinsic or a byte-reversed load instruction.
+- netty-124 | Bypass the portable abstraction with a thin native layer over the OS primitive | When a portable runtime API (the JDK selector, a generic event library) adds bookkeeping, synchronization or semantics you do not need, call the OS primitive (edge-triggered epoll, io_uring) directly through…
+- netty-125 | Cross the native boundary rarely: batch inside one call, cache results, skip calls whose answer is known | Every managed-to-native call costs far more than a normal call.
+- netty-126 | Pass plain numbers across the boundary: addresses, byte arrays, error codes, packed results | Native functions should take memory addresses and lengths (not managed buffer objects), return raw bytes (not formatted strings or managed objects built in C), report errors as numeric codes (format the…
+- netty-127 | Share native memory with the kernel and fill native structs directly from managed code | Let the kernel write results (epoll events) into native memory that managed code reads directly, and build kernel input structs (`struct iovec[]`, `mmsghdr[]`) in preallocated native memory with raw stores.
+- netty-128 | Preallocate native scratch memory per I/O thread, size it to the real limit, allocate it as one block | Native helper memory used on every syscall (iovecs, msghdrs, control-message buffers) should be preallocated once per event loop and passed by address, not malloc'd and freed per call.
+- netty-129 | Free native memory deterministically, and grow it with realloc | When ownership is explicit (reference counted), allocate native memory with malloc, release it with free when the count reaches zero, and resize with realloc.
+- netty-130 | Attach finalizers and cleaners only when needed, and know what native release costs on your runtime | Finalizers and phantom-reference cleaners add GC work and often a shared lock.
+- netty-131 | Tell the kernel your threading model: io_uring single-issuer, deferred task-run and registered rings | When one thread owns a ring, declare it (`SINGLE_ISSUER`, `DEFER_TASKRUN`) so the kernel skips cross-CPU signalling and locking.
+- netty-132 | Let the kernel pick buffers: multishot requests with provided buffer rings | Arm one multishot request that keeps producing completions (accept, recv, poll) instead of re-arming per event.
+- netty-133 | Probe platform capabilities once, cheaply, and gate them by version | Decide platform features (native transports, unaligned access, Unsafe, io_uring opcodes, memory limits) once at startup with the cheapest reliable source: a system property, a runtime-internal field or a…
+- netty-134 | Treat native glue as hot code: optimize the build and the calling conventions | Compile JNI and FFI glue with full optimization, mark small helpers `static inline`, pass structs by const pointer rather than by value, and keep frame pointers so profilers can walk native stacks.
+- pcsx2-038 | Leave thread placement to the OS after a pinned measurement | Pinning a thread to one core makes sense for a timing measurement, such as calibrating a cycle counter.
+- pcsx2-039 | Use compiler-native thread-local variables instead of TLS API calls | OS TLS APIs such as `TlsGetValue` and `pthread_getspecific` make a function call and an index lookup on every access.
+- pcsx2-091 | Tell the OS scheduler that you are a real-time multimedia app | Desktop compositors and schedulers treat ordinary processes as background work.
+- pcsx2-162 | Ask the driver for less validation and more threading | Graphics drivers spend CPU time on error checks and on serial command processing.
+- pcsx2-206 | A minimal setjmp/longjmp that saves only callee-saved registers | The C library's `setjmp`/`longjmp` may save signal masks, shadow stacks or SEH state, and on some platforms it unwinds frames.
+- pcsx2-240 | Pass and return wide values in registers | Returning a 64-bit or 128-bit value through a hidden pointer, or passing it by reference, forces a store to memory and a reload.
+- pcsx2-294 | Compile the hot module once per ISA and dispatch at runtime | Build the SIMD-heavy sources several times, once each for SSE4, AVX and AVX2, each copy in its own namespace.
+- ppsspp-045 | Suspend redraw and preallocate during bulk UI inserts | UI widgets that repaint and grow storage on every insert become quadratic when filled with thousands of rows.
+- ppsspp-075 | Sidestep target-specific pipeline penalties | Some cores punish particular patterns: unaligned loads that trap or are slow, or moving data between register files such as ARM VFP and NEON.
+- ppsspp-082 | Bind SIMD variants at compile time where you can, at runtime where you must | When the instruction set is known at build time (SSE2 on x86-64), call the optimized routine directly through a macro so it can be inlined, with no indirect call.
+- ppsspp-140 | Pick the hash function per target from benchmarks | Hash throughput depends on the word size and the microarchitecture.
+- ppsspp-186 | Bit-deposit and extract instructions for format conversion, gated by vendor | BMI2 `PDEP`/`PEXT` scatter and gather arbitrary bit fields in one instruction, replacing chains of shifts and masks when expanding packed pixel formats.
+- ppsspp-257 | Read trapping system registers once | On some kernels, reading a CPU identification register from user space traps and is emulated, which costs on the order of a microsecond.
+- snes9x-012 | Produce data in the format the consumer accepts natively | Every format mismatch between producer and consumer means a conversion pass, sometimes per pixel per frame.
+- snes9x-020 | Reconfigure an OS resource in place instead of recreating it | Destroying and recreating a heavyweight handle (a window, GL context binding, socket or device) costs far more than changing its properties.
+- snes9x-030 | Ask the compositor to step aside in fullscreen | A desktop compositor adds a copy and often a frame of latency to every presented image.
+- snes9x-042 | Tune for the exact target CPU when it is known | When a build targets one fixed device, flags such as `-mcpu`/`-mtune` and enabling its SIMD unit let the compiler schedule for that pipeline and auto-vectorize.
+- snes9x-053 | Let the compositor pace windowed output | In a composited window, driver vsync together with the compositor's own frame clock can add latency or judder because two clocks are involved.
+- snes9x-076 | Sleep coarsely, then spin for the last stretch | OS sleeps overshoot by about a millisecond or more, and a pure busy-wait burns a core.
+- snes9x-095 | Drop to a low-frequency timer while idle | A main loop that runs as an "always-idle" callback spins a core even when nothing is happening.
+- snes9x-165 | Optional hand-written assembly backends behind build flags | Keep a portable implementation as the reference, and let a build flag swap in hand-tuned assembly for the hottest subsystems on a specific CPU.

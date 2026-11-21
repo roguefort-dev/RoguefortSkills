@@ -1,0 +1,165 @@
+# Lens: branching-fast-paths (159 techniques)
+
+Fast paths for the common case, branch removal, specialisation, predictable control flow.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-018 | Store comparison operands in the form the hot test needs | If a value is written rarely but compared often, apply the transform on write.
+- ares-020 | Range checks as a compile-time mask compare | For power-of-two aligned ranges, "lo ≤ x ≤ hi" reduces to `(x & mask) == lo`, with the mask computed at compile time.
+- ares-022 | Cumulative cases as a fall-through switch | When higher modes do everything lower modes do plus more, a chain of `if(mode >= X)` tests runs every comparison.
+- ares-062 | Hoist mode checks out of inner loops with template specialisation | If a mode flag is constant for a whole loop but tested on every iteration, make it a template parameter and select the instantiation once outside the loop.
+- ares-082 | A pared-down fast path for lookups that were already validated | If an earlier stage has already handled the error cases for an input, a second lookup on the same input can run without exception, debug or validity checks.
+- ares-085 | Test the steady-state case first and mark it likely | A state machine that spends almost all its time in one state should check that state first, with an early return and a `likely` hint.
+- ares-122 | Select with masks or conditional moves instead of branching | When a result is one of two values chosen by a data-dependent flag, compute both and pick one with a conditional move or a mask (`-flag & (a^b) ^ b`).
+- dolphin-034 | Move per-item branches to setup time | A branch on a value that is constant for a whole batch, such as a component count or a format flag, still runs once per item.
+- dolphin-043 | Check rare conditions once per slice, not every step | Testing for an external interrupt or pause request before every simulated instruction puts a load and branch in the innermost loop, though the condition changes rarely.
+- dolphin-045 | Stop a scan at a sentinel instead of checking every slot | Scanning a fixed-size array and testing each slot for "used" visits every slot even when only one or two are filled.
+- dolphin-047 | Test the common case first and let rare cases fall through | Checking for NaN on every float compare before the ordinary <, >, == tests puts the rare case on the hot path.
+- dolphin-057 | Test for the dominant case first in a generic slow path | When one specific input reaches a general handler far more often than the others, check for it first with an exact compare and return.
+- dolphin-072 | Fold several range checks into one mask test | When the address regions you need to catch are marked by specific high bits, one `TEST addr, MASK` plus one branch replaces a chain of compares and jumps.
+- dolphin-099 | Dispatch on CPU features once, outside the loop | Checking a capability flag inside a per-pixel or per-vertex loop adds a load and a branch to every iteration, and the branch can stop the compiler from keeping constants in registers.
+- dolphin-118 | Guard an expensive slow path with cheap state tests | Leaving the fast path unconditionally "just in case" (for instance, to check for pending interrupts) costs the full exit every time.
+- dolphin-145 | Pair calls with returns so the CPU's return predictor works | CPUs predict `RET` targets with a hardware return-stack buffer, but only when every `RET` matches a `CALL`.
+- dolphin-148 | Store the result itself, not the flags derived from it | If several flags are cheap to derive from a value (zero, positive, negative), store the value lazily in a form where each flag test is a single instruction, rather than computing and packing flags with…
+- dolphin-158 | Narrow the slow path to exactly the inputs that need it | If an expensive fallback is needed only for a small, easily identified input class, test for that class with a couple of integer ops and send everything else down the fast path.
+- dolphin-194 | Range check with one unsigned compare | `lo <= x && x < hi` needs two compares and two branches.
+- dolphin-205 | Test for rare inputs only when the result is rare | If an exceptional input always produces an exceptional output (NaN in gives NaN out), compute first and check the inputs only when the output is exceptional.
+- dolphin-206 | Cheap inline check before an expensive call | If a function usually does nothing, for example "handle pending events" when there are none, test its trigger condition inline and call it only when the test passes.
+- dolphin-267 | Replace per-field conditionals with bit arithmetic | "If bit i is set, add 1" over many flags is just a popcount of a mask.
+- dolphin-289 | Don't re-check on entry what the caller already checked | If every path into a routine has already tested a condition, a second test at the callee's entry is pure overhead.
+- dolphin-304 | Null object instead of null checks | If a pointer may be "nothing", install a do-nothing implementation instead of null.
+- dolphin-320 | Speculative devirtualisation of the dominant callee | When an indirect call almost always targets one or two functions, compare the pointer against them and call them directly in the fast path.
+- dolphin-329 | Mirror guest calls with host call/return so the return predictor works | A JIT translating guest calls to plain jumps defeats the host's return-stack predictor.
+- duckstation-026 | Count up toward a deadline instead of updating two counters | Maintaining both "elapsed" and "remaining" counters doubles the stores on a very hot path.
+- duckstation-027 | Check rare conditions only where they can arise | A validity check on every iteration costs a compare and a branch each time.
+- duckstation-048 | Fold rare checks into an existing countdown | If a hot loop already compares a counter against a limit, signal a rare condition by forcing the limit to zero.
+- duckstation-064 | Detect no-op requests and skip them early | Workloads often issue operations that change nothing: copying a region onto itself, zero-sized fills, zero opcodes.
+- duckstation-066 | Pad buffers with history so boundary checks disappear | A filter that reads `i-1..i-3` needs a branch at the start of each block to fetch samples from the previous one.
+- duckstation-068 | Hoist rarely true or invariant work out of the inner loop | If a check inside a per-sample or per-block loop is true only once, or depends on a mode that can't change mid-loop, move it outside.
+- duckstation-069 | Merge duplicated branches into one data-dependent expression | If two branches run the same arithmetic with different constants, select the constant (which compiles to a cmov) and run the arithmetic once.
+- duckstation-094 | Fold branches whose outcome is decided by a constant | A conditional branch on a value that is fixed (for example, a hardwired zero register) always goes the same way.
+- duckstation-101 | Decode addresses with masks instead of a switch | When address regions are aligned powers of two, a lookup can be done with AND, compare and shift.
+- duckstation-148 | Tell the compiler which branches are cold or impossible | Marking error and edge paths `[[unlikely]]` makes the compiler lay them out of line, so the hot path falls straight through and stays dense in the instruction cache.
+- duckstation-195 | Skip the read in read-modify-write when nothing will be kept | If the new value fully overwrites the destination (no blending, no masking, no partial lanes), the load of the old value is wasted bandwidth.
+- duckstation-236 | Mark error paths as unlikely | Branch-probability hints such as `[[unlikely]]` or `__builtin_expect` tell the compiler to lay the common path out as straight fall-through code and move the error handling out of line.
+- duckstation-277 | Make a dense switch provably exhaustive so it drops its bounds check | A switch over a small integer usually compiles to a jump table guarded by a range check plus a branch to `default`.
+- duckstation-290 | Guard expensive calls with the cheapest condition that makes them pointless | Before calling an eligibility check or bookkeeping hook, test the trivial condition under which its result can't matter.
+- duckstation-298 | Check a two-sided range with one unsigned compare, and move rare fixups into that branch | `(u64)(v - MIN) > (u64)(MAX - MIN)` tests both bounds at once, because values below MIN wrap to huge unsigned numbers.
+- duckstation-301 | Go branchless where the outcome is data-dependent and unpredictable | A saturation branch costs nothing when it's almost always taken one way, and about 15 cycles each time it mispredicts.
+- duckstation-312 | Early-out when an increment doesn't cross any threshold | The slow path in an accumulate-then-check routine is only needed when the new value crosses a boundary.
+- flycast-002 | Chain predicated tests instead of repeated test-and-set | To answer "is any of these conditions true", run each later test only if the earlier ones failed, and write the result once at the end.
+- flycast-013 | Keep expensive debug checks behind a runtime flag marked unlikely | Calls like `glGetError` can force a driver to synchronize, so checking after every call is very slow.
+- flycast-018 | Duplicate dispatch code so each indirect call site has one target | The branch target buffer predicts an indirect call by its address.
+- flycast-034 | Compare and range-check floats as integers | IEEE-754 floats that are non-negative sort the same way as their bit patterns read as signed integers.
+- flycast-069 | Unswitch loops on loop-invariant modes | A `switch` on a value that is constant for the whole loop, placed inside the loop body, costs a dispatch per iteration and blocks vectorization.
+- flycast-109 | Replace if-chains with a switch on dense keys | A long chain of equality tests runs in linear time.
+- flycast-110 | Swap function pointers when the mode changes | If every call checks a rarely changing mode flag, install mode-specific implementations through function pointers and re-point them when the mode toggles.
+- flycast-163 | Collapse a hot compound predicate into one precomputed flag | A check called on every memory access, such as `config && register.bit`, means two loads and a branch each time.
+- flycast-178 | Stop the per-tick pipeline as soon as the unit goes idle | If an early stage of a per-sample pipeline can switch the unit off, skip the remaining stages for that tick.
+- flycast-188 | Pick the mode-dependent handler when the mode changes, not on each call | A check that depends on a rarely changing mode, repeated on every hot operation, is wasted work.
+- flycast-220 | Select specialised per-voice step functions when registers are written | Each voice's format, loop mode and envelope state change rarely but are consulted 44,100 times a second.
+- melonds-006 | Keep an active-set bitmask to skip idle units | If a hot loop updates N units and most are usually disabled, maintain a bitmask of the active ones whenever their configuration changes.
+- melonds-017 | Split a loop by region so classification happens once per region | If a loop body begins with "which zone is this element in?" and the zones are contiguous (head, middle, tail), write one loop per zone with the zone's logic built in.
+- melonds-018 | Clamp loop bounds up front instead of bounds-checking each iteration | Clip the iteration range to the valid interval once, before the loop.
+- melonds-019 | Hoist loop-invariant work out of the inner loop | Anything that depends only on outer-loop variables should be computed outside the inner loop.
+- melonds-020 | Fold an enable flag into a threshold so one compare covers both cases | "If feature X is on, test `v <= ref`; otherwise test `v == 0`" turns into a single comparison once the threshold is precomputed as `ref` when the feature is on and as the neutral value when it is off.
+- melonds-031 | Check several coordinates against power-of-two bounds with one OR and mask | With a power-of-two size, a coordinate is out of range exactly when it has bits set above the size bits.
+- melonds-042 | Overlay several exit flags on one word and test them together | If the hot loop has to stop for any of N rare reasons, store the reasons as bytes in a union with a single integer.
+- melonds-055 | Store power-of-two scale factors as shift counts | If a scale factor is always 1, 2, 4 and so on, store log2 of it.
+- melonds-069 | Count budgets down so the sign flag is your exit test | If a budget counts up toward a limit, you need a compare against the limit.
+- melonds-098 | Give the common simple case its own path | General code handles the worst case, such as variable-length parameters, buffering and multi-step state.
+- melonds-107 | Early-out for units that can't produce output | In a loop over many components, check cheaply whether each one can affect the result this tick, because it is disabled, powered down or degenerate, and skip it before any per-tick work.
+- melonds-151 | Use a type tag and static_cast instead of dynamic_cast | `dynamic_cast` walks RTTI structures at runtime and can do string compares across shared libraries.
+- melonds-164 | Instruction dispatch through a table indexed by extracted opcode bits | Decoding an instruction with nested ifs and switches costs several dependent branches.
+- mesen2-004 | Stop processing once the output is fully covered | In layered compositing, where front layers hide back layers, count how many output slots have been filled.
+- mesen2-010 | Unswitch loops: move invariant branches outside | If a condition is fixed for the whole loop, write two loops and test the condition once.
+- mesen2-018 | Shape hot-loop control flow around the common case | Put the frequent case in the first branch, move rare code into a separate non-inlined function, and hoist calls that every branch makes.
+- mesen2-022 | Guard expensive hooks with an inline flag check | Split an instrumentation hook into a tiny inline wrapper that tests one boolean, and an out-of-line body that does the real work.
+- mesen2-045 | Rebind a function pointer when configuration changes | When a per-tick function branches on configuration that rarely changes (hardware variant, speed mode, attached peripherals), compile one specialized version per combination.
+- mesen2-048 | Occupancy map to skip empty positions | If every output position has to search a small list of objects for one that covers it, mark the covered positions in a byte array once per row.
+- mesen2-054 | Answer "anything pending?" with a single mask test | If a status check loops over sources or calls a general query with a wildcard argument, store the state as bitmasks and test `active & ~disabled` directly.
+- mesen2-056 | Per-category "any?" flags before scanning a list | If a hook runs on every operation but only does something when a matching rule exists, keep a precomputed boolean for each operation category, or one summary flag over all fields of a request struct.
+- mesen2-084 | Move an optional effect from every producer into one post-pass | If every output path carries an "if effect enabled" branch inside its pixel loop, take the effect out into a single pass that runs after the main output and returns immediately when the effect is off.
+- mesen2-087 | Move rare states out of the hot dispatch into a non-inlined function | When a function runs millions of times a second and almost always takes one path, put that path first in a single `if` and move every rare case into a separate function marked never-inline.
+- mesen2-093 | Hoist loop-invariant mode checks out of pixel loops | A condition that cannot change during a loop, such as "brightness is at its default", should select between two copies of the loop instead of being tested per element.
+- mesen2-101 | Use a virtual type tag and a switch instead of a dynamic_cast chain | `dynamic_cast` walks RTTI and may compare type-name strings, and a chain of them runs that walk once per candidate type.
+- mesen2-117 | Test the cheapest, most selective condition first | In a per-access hook, check an inexpensive flag or an emptiness test before a hash lookup or classification function.
+- mesen2-123 | Cache "is this hook overridden?" as a plain flag | A virtual hook that most subclasses leave empty still costs an indirect call on every invocation.
+- mesen2-125 | Check a pending flag before calling a per-tick subsystem | When a subsystem is idle almost all the time, don't call into it every tick only for it to return immediately.
+- mesen2-128 | Move the early-exit test out of the callee and into an inline predicate | A function that starts with "if there is nothing to do, return" still costs a call every time.
+- mesen2-129 | Skip a transform when it would leave the input unchanged | If a correction step does nothing in the common case, test for that case first with a cheap check, such as an alignment mask, and skip the call.
+- mesen2-131 | Split hot code into an inlined fast path and an out-of-line slow path | Force-inline the short, common path. Move the rare, bulky path into a separate function marked noinline. Callers stay small and keep their code in the instruction cache, and the rare case still costs only one…
+- mesen2-135 | Count with bit arithmetic instead of if/else | When you count elements by category, extract each flag as a 0 or 1 value and add it.
+- mesen2-150 | Make instrumentation hooks cost one null check when disabled | Put tracing and debug hooks in force-inline wrappers that test a single pointer or flag before doing anything.
+- mesen2-154 | Keep one "next event" deadline and compare against it | Don't check many timers on every tick. Keep only the timestamp of the soonest pending event. The per-tick cost is one comparison, and the event handler sets the next deadline.
+- mesen2-164 | Pre-filter conditional checks by category, and precompile the conditions | Keep one flag per operation type that says whether any rule could apply, and bail out right away when it is false.
+- mgba-002 | Hard-code the dominant case and check it first | Write separate code paths per mode instead of reading mode-dependent function pointers and variables on every step, and test the most common case with a single predictable branch before any general handling.
+- mgba-004 | Inline the step and unswitch the hot loop | Inline the per-iteration function, skip work an iteration won't use, and move invariant tests out of the loop by writing one loop per case.
+- mgba-009 | Normalize switch keys into a dense range | Shift or scale sparse case constants down to small consecutive integers so the compiler emits a bounds check plus a jump table instead of a chain of comparisons.
+- mgba-012 | Branch-free range checks with power-of-two bounds | When a bound is a power of two, OR the coordinates together and test them against the inverted mask.
+- mgba-015 | Generate specialized loop bodies for invariant modes | When a mode is fixed for a whole batch, choose a pre-instantiated loop variant once instead of branching per element.
+- mgba-023 | Unroll small fill loops that memset can't express | When the fill value isn't a repeated byte, partially unroll the store loop so loop overhead drops by the unroll factor and stores pipeline better.
+- mgba-039 | Handlers should catch up on everything that is due | When an event handler runs late, loop until no more work is due, rather than handling one item and bouncing back through the global dispatcher.
+- mgba-040 | Fold all exit reasons into the hot loop's one bound | Keep a single comparison in the hot loop.
+- mgba-042 | Hoist loop-invariant branches by specialising the loop | If a condition is constant for the whole loop, test it once and run a specialised copy of the loop body (via macros or templates).
+- mgba-044 | Power-of-two range checks as masks; replicate bits by doubling | For a power-of-two `N`, `(x & ~(N-1)) == 0` checks `0 <= x < N` in one operation, negatives included.
+- mgba-048 | Cheapest decisive test first; clamp rare limits after the loop | Order short-circuit conditions so the cheap, usually decisive test runs first.
+- mgba-074 | Unroll to the natural group size; handle the ragged edges separately | When data comes in fixed-size groups, split the loop into an unaligned prefix, an aligned unrolled body and a suffix.
+- mgba-076 | Batch known no-op steps; fall back to fine stepping only near a deadline | A state machine that steps through idle sub-states wastes a dispatch on each one.
+- mgba-091 | Let the common case exit before the general computation | Order the branches so the most frequent, cheap case returns before you enter loops or clamps that only rarer cases need.
+- mgba-107 | Hoist loop-invariant work out of the dispatcher loop | A dispatcher loop runs for every event, so any work that depends only on state that doesn't change inside the loop should run once before it.
+- mgba-120 | Remove checks that a later stage repeats | Go through inner loops looking for tests that something downstream already performs, and delete them.
+- mgba-126 | Compute shared expressions once and test before fetching | Compute a common subexpression a single time.
+- mgba-140 | Make calls before computing values you need afterwards | Any value that is live across a function call has to sit in a callee-saved register or be spilled to the stack.
+- mgba-152 | Test the cheapest disqualifying condition first | Order checks so that the cheapest one that rejects the most work runs first, before any loads, lookups or setup.
+- mgba-177 | Test the cheapest, most-often-false condition first | A `&&` chain stops at the first false term.
+- mgba-198 | Hoist invariant masks and unroll small fixed trip counts | Compute values that don't change inside the loop before it starts.
+- mgba-200 | Cancel a drain loop by swapping the queue head aside | To make an event-dispatch loop interruptible at almost no cost, move the head pointer of the ready list into a side slot.
+- mgba-231 | Load packed sub-word data a word at a time and unpack with constant shifts | Fetch a whole row of packed elements in one memory access and extract each element in a fully unrolled sequence with constant shift amounts.
+- pcsx2-002 | Gate values with an AND mask instead of multiplying by 0 or 1 | If a per-channel on/off switch is stored as 0 or 1 and applied by multiplication, every sample pays for an integer multiply.
+- pcsx2-004 | Test the hottest key before the general dispatch | When a single input dominates calls to a multi-way handler, check for it first and return directly.
+- pcsx2-090 | Drop redundant masking when the address width already bounds it | If an address or index is already limited by its type or by the lookup that follows, an extra `& mask` with a conditional choice of mask adds a compare, a select and an AND to every access for nothing.
+- pcsx2-105 | Dedicated handler for the most frequent input shape | Measure which input format dominates, and give it a straight-line handler that decodes the whole record at once instead of going through per-field generic dispatch.
+- pcsx2-136 | Keep diagnostics out of release hot paths | A check that runs once per item multiplies its cost by the item count, even when it never fires.
+- pcsx2-176 | Use scalar compares for short early-exit searches | A SIMD compare, movemask and test sequence has latency and blocks compare/branch fusion.
+- pcsx2-178 | Inline small helpers so duplicate checks merge | A helper that returns a sentinel, followed by a caller that tests the sentinel, does the same check twice.
+- pcsx2-252 | Inline a rare-case check as a branchless compare | Calling a helper only to test whether two inputs match a magic pair costs a call, argument setup and register saves on every execution.
+- ppsspp-006 | Early-out when the operation is an identity | Generic transforms often run with neutral parameters.
+- ppsspp-016 | Specialize the loop for the common configuration | A general loop that applies offset, mask and shift per element pays for flexibility it rarely uses.
+- ppsspp-025 | Call the hottest handler directly, bypassing generic dispatch | A generic dispatcher (decode the ID, look up a table, run common prologue logic) adds overhead to every call.
+- ppsspp-050 | Turn impossible-case checks on hot accessors into debug asserts | If an accessor is called constantly and its arguments are valid by construction, move the validation into a debug-only assert and inline the function.
+- ppsspp-051 | Split a dispatcher into specialized variants chosen once | If a generic entry point tests flags and options on every call, but those flags are fixed per callee, pick the right specialized variant when the call is set up.
+- ppsspp-063 | Inline the fast check, keep the slow body out of line | For a function called on every item whose usual answer is “nothing changed”, put the quick test in an inline header wrapper and the rest in an out-of-line function.
+- ppsspp-086 | Detect identity or degenerate cases and take the trivial path | General transforms often get parameters that make them trivial: unity gain, contiguous rows, blending that copies the source, a full-screen fill.
+- ppsspp-096 | Inner loop for runs of the same command | If a command is usually followed by more of the same kind, the handler can peek ahead and consume the whole run itself.
+- ppsspp-097 | Check a cheap inline condition before a virtual call | If a virtual method usually has nothing to do, test the condition through a non-virtual inline accessor at the call site.
+- ppsspp-122 | Dedicated fast path for the dominant special case | A general routine pays for generality on every call.
+- ppsspp-146 | A tight inner loop for the hot subset of commands | If a stream of commands is dominated by a few opcodes, put a small dedicated loop in front of the general dispatcher.
+- ppsspp-160 | Fast path for the aligned, full-size case | General code that handles every offset, size and permutation is slow for the usual case.
+- ppsspp-184 | Reject or short-circuit the common trivial case first | Put the cheapest test for "nothing to do" at the top of a costly routine: fully outside the bounds, no clipping needed, lane masked off, channel unused.
+- ppsspp-202 | Canonicalize state from the actual data to reach a cheaper path | Configured state is often more general than what the data in use can produce.
+- ppsspp-205 | Cheap pre-check before the expensive path | Put an inexpensive test first that settles the common case.
+- ppsspp-226 | Tighten an interpreter's dispatch loop | In an interpreter's hottest loop, every instruction counts.
+- ppsspp-268 | Route to the vectorized general path when the scalar fast path won't apply | A "fast" special-case routine is often fast only for a narrow set of states and falls back to slow per-element work otherwise.
+- ppsspp-282 | Threaded dispatch with computed goto | A switch-based interpreter funnels every opcode through one indirect jump, which the branch predictor handles poorly.
+- ppsspp-283 | Chain directly into the next compiled block inside the interpreter | Returning to an outer loop after every basic block costs a call, a lookup and a return.
+- ppsspp-287 | Generate the decoder as nested switches from the opcode tables | Table-driven decoding chases a pointer per level.
+- snes9x-006 | Use non-short-circuit boolean operators on cheap conditions | `&&` and `||` require a conditional jump per operand.
+- snes9x-010 | Put the cheapest rejection test first | If an early-exit condition can be decided from raw inputs, test it before computing values that only the non-exit path needs.
+- snes9x-034 | Pick the specialized routine once, outside the hot loop | If a slower general case is needed only under some condition, keep the fast routine as the default and switch to the slower one when the condition holds, choosing once per batch (per frame or per scanline).
+- snes9x-043 | Return early on writes that change nothing | If writing a control register sets off expensive recomputation (rescheduling timers, rebuilding derived state), compare the new value with the stored one and return when they match.
+- snes9x-046 | Wrap ring indices with a compare-and-subtract, not modulo | For a ring buffer whose size is not a power of two, `(start + size) % capacity` costs an integer division on every push.
+- snes9x-059 | Give hot, narrow access paths their own accessor | If a generic read or write routine checks for special regions (I/O, overlays), every access pays for those checks even when the address can never land there.
+- snes9x-063 | Replace a periodic modulo with a counter that resets | If a counter is only ever incremented in one place, "every Nth time" can be tested with `++n == N` followed by `n = 0`, not with `n % N == 0`.
+- snes9x-064 | Use count-leading-zeros instead of a shift loop to normalise | Normalising a fixed-point number (shifting left until the top bit is set and counting the shifts) is a data-dependent loop.
+- snes9x-099 | Swap the whole dispatch table when a mode bit changes | If a few rarely-changing mode flags alter what many handlers do, build one specialized handler table per mode combination and switch a single table pointer when a flag changes.
+- snes9x-101 | Pair every fast handler with a general fallback | Write each operation twice: a fast version that assumes the common preconditions hold, and a slow version that checks everything.
+- snes9x-111 | Classify by bit tests instead of range comparisons | When the region boundaries line up with bit patterns, classify an address with a few AND masks (and an add that turns a range into one bit) instead of a table or chained range comparisons.
+- snes9x-117 | Detect idle spin loops and skip to the next event | Programs often busy-wait by re-reading a memory location in a tight loop.
+- snes9x-122 | Remember "empty" so whole items can be skipped | While decoding or building an item, OR all of its data together and record whether the result was zero.
+- snes9x-125 | Hoist loop-invariant cases out of the inner loop | If a condition is fixed for a whole block (orientation, wrap mode), branch on it once and run a separate inner loop for each case.
+- snes9x-129 | Swap the lookup table instead of testing a flag per element | If a mode only changes what a per-element lookup returns, point the lookup at a different table (for example an all-black palette) instead of testing the mode for each element.
+- snes9x-138 | Skip passes whose output cannot be seen | Before running an expensive stage, check cheaply whether its result can affect the output, and skip it if not.
+- snes9x-140 | Resumable unrolled loops via switch-into-loop | When a loop body is a fixed cycle of N steps that may stop at any step and resume later, unroll the cycle inside a `do` loop and jump into it with a `switch` on the saved step index (Duff's device).
+- snes9x-151 | Branch-free clamp to a signed 16-bit range | Check for overflow by casting to the narrow type and comparing.
+- snes9x-153 | Order branches by measured frequency | Arrange if/else chains so the most frequent case is tested first and falls through, and record the measured frequencies in the code.

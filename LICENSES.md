@@ -7,6 +7,7 @@ This repository contains material under MIT and CC BY 4.0. The root [LICENSE](LI
 | Original router, optimization guides, allocation guidance, post-FX extras, and repository documentation | MIT, copyright (c) 2026 roguefort-dev; [license](skills/perf-aio/licenses/roguefortskills-MIT.txt) |
 | `skills/john-wick/` | MIT, copyright (c) 2026 roguefort-dev; [license](skills/john-wick/licenses/roguefortskills-MIT.txt) |
 | `skills/search-console-opportunities/` | MIT, copyright (c) 2026 roguefort-dev; [license](skills/search-console-opportunities/licenses/roguefortskills-MIT.txt) |
+| `skills/perf-opportunities/` | MIT, copyright (c) 2026 roguefort-dev; [license](skills/perf-opportunities/licenses/roguefortskills-MIT.txt). Original synthesis describing public commit histories; technique cards cite upstream commits by hash and include no upstream source files |
 | `skills/perf-aio/pixijs/` | MIT, PixiJS; [upstream notice](skills/perf-aio/licenses/pixijs-skills.LICENSE) |
 | `skills/perf-aio/shaders/`, except `post-fx-extras.md` | MIT, MiniMax; [upstream notice](skills/perf-aio/licenses/minimax-skills.LICENSE) |
 | `skills/perf-aio/threejs/` | MIT, emalorenzo; [declaration, source attribution and terms](skills/perf-aio/licenses/three-agent-skills.NOTICE.md) |

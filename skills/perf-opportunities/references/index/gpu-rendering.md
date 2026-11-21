@@ -1,0 +1,239 @@
+# Lens: gpu-rendering (233 techniques)
+
+Draw-call and state batching, texture and shader caches, pipelines, presentation, UI redraw.
+
+Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
+
+- ares-112 | Don't emit duplicated output that the presenter can scale | Writing every line twice into a framebuffer doubles the memory traffic and the work for every later pass.
+- ares-163 | Batch GPU commands and wait only at explicit sync points | Collect emulated display-list words into a local buffer and enqueue whole commands to the GPU backend asynchronously.
+- dolphin-019 | Shadow API state and drop redundant updates | Every graphics API call costs driver validation and CPU time, even when it sets a value that is already set.
+- dolphin-020 | Batch many small draws into one call | Fixed per-call overhead dominates when a frame issues thousands of tiny draws.
+- dolphin-021 | Upload contiguous ranges in one call | If an API accepts a count, send adjacent registers or array slots in one call rather than looping one slot at a time.
+- dolphin-022 | Reuse resources instead of destroying and recreating them | Creating a texture or device buffer allocates driver memory, validates it and possibly syncs.
+- dolphin-025 | Upload in the narrowest format and let the GPU build mipmaps | Expanding single-channel data to RGBA on the CPU quadruples the bytes decoded, copied and uploaded.
+- dolphin-026 | Move per-pixel decoding to a GPU compute kernel | Texture and color-format decoding is fully data-parallel: every output block depends only on its own input bytes.
+- dolphin-058 | Filter redundant state uploads with a shadow copy and one memcmp | Driver calls are expensive. Keep a shadow copy of what was last sent and skip the call when nothing changed. Do the comparison as a single `memcmp` over the whole range and the update as one `memcpy`, not as…
+- dolphin-084 | Match the upload mechanism to how often data is reused | GPU buffer objects pay for allocation, mapping and synchronization, which is worth it only when the data is drawn more than once.
+- dolphin-085 | Produce two outputs in one pass instead of drawing twice | If a second pass over the same geometry exists only to write a different value into one channel, ask the hardware to emit both values from one shader invocation.
+- dolphin-104 | Use the processor's native number type in hot shader math | GPUs have far more float throughput than integer throughput, and every int-to-float conversion is an extra instruction.
+- dolphin-110 | Pick the buffer-upload path per driver, and say what you will overwrite | Mapping a GPU buffer, sub-data copies and orphaning cost different amounts on different drivers.
+- dolphin-123 | Shadow the state you set and drop no-op updates | Driver and hardware state changes are expensive, and many writes merely repeat the current value.
+- dolphin-124 | Cache small immutable GPU objects keyed by their parameters | Creating or re-uploading tiny objects like samplers, fullscreen-quad VBOs or state blocks every draw costs driver calls and allocations.
+- dolphin-128 | Rotate through several streaming buffers to avoid CPU–GPU stalls | If the CPU writes into a buffer the GPU is still reading, the driver must either block or copy.
+- dolphin-137 | Give the driver everything it would otherwise compute or infer | Some API calls make the driver scan your data to find things you already know.
+- dolphin-138 | Help tile-based GPUs skip memory traffic | Mobile tiled GPUs must load the previous contents of every attachment into tile memory unless told otherwise.
+- dolphin-139 | Collapse a two-pass effect into one pass, and don't write what isn't tested | A second geometry pass to produce one more output (such as destination alpha) doubles vertex and raster work.
+- dolphin-174 | Upload shader constants as one buffer, only when dirty | Setting uniforms one by one per draw costs a driver call each.
+- dolphin-175 | Stream dynamic data through pinned or persistently mapped memory | For data rewritten every frame, a buffer the GPU reads directly from client memory avoids the driver's staging copy and the map/unmap round trips.
+- dolphin-176 | Choose cheaper shader primitives and integer arithmetic | In generated shaders, call the specialized built-in (`exp2(x)` rather than `pow(2.0, x)`), because not every driver rewrites it.
+- dolphin-216 | Pipeline GPU readback with double-buffered async transfers | A synchronous read from GPU memory stalls the CPU until the GPU has finished.
+- dolphin-217 | Compile specialized code in the background and use a generic fallback meanwhile | Compiling a specialized variant on the critical path causes a hitch the first time each variant is needed.
+- dolphin-220 | Binary-search a dynamic index instead of switching on it | Some compilers and drivers lower a `switch` on a runtime value into a linear if-else chain.
+- dolphin-228 | Let the GPU consume formats it supports natively | Decompressing or reformatting data on the CPU before upload costs CPU time and bandwidth.
+- dolphin-229 | Choose upload paths with the least driver overhead | Persistent coherent mappings avoid per-write flush calls, and default-usage resources updated through the driver's copy path avoid map/unmap synchronization.
+- dolphin-236 | Defer device-to-host readbacks until a synchronization point | Reading results back from an asynchronous device (GPU, DMA engine, remote service) forces the host to wait until the device drains its queue.
+- dolphin-237 | Submit work to the device only once a batch is big enough | Every submission has a fixed cost: driver overhead, a kernel transition, lost overlap.
+- dolphin-272 | Persist the driver's compiled pipeline blobs between runs | Shader source caches still leave the driver to compile and link every pipeline at startup or on first use, which causes stutter.
+- dolphin-273 | Remove dimensions from the specialization key to cut variant count | Each field in a compiled-variant cache key multiplies the number of variants to compile and keep.
+- dolphin-283 | Turn on the optimizer for generated GPU code in release builds | Shader translators often default to unoptimized output with debug info kept, so validation and debugging tools are easier to use.
+- dolphin-338 | Never block on a compile: background-compile specialised variants, fall back to a generic one | Specialised programs are fast but expensive to build.
+- duckstation-001 | Batch draw calls and flush only when state really changes | Every draw call costs driver and CPU time that does not depend on how many triangles it carries.
+- duckstation-002 | Move per-draw parameters into vertex data so batches stay intact | If a parameter differs between draws and lives in a uniform, each change forces a new draw call.
+- duckstation-003 | Decode data on the fly in the shader instead of building derived copies | Building an intermediate resource for each source configuration (for example, a decoded texture per palette and page) costs passes and forces work to be split up.
+- duckstation-004 | Shadow API state to skip redundant driver calls | Graphics drivers often validate state on every call, even when the value has not changed.
+- duckstation-005 | Group draw constants in one buffer and upload it only when dirty | Setting many separate uniforms costs one API call each.
+- duckstation-007 | Stream uploads through a ring buffer instead of temporary allocations | Allocating a temporary array for each upload and then handing it to the driver costs an allocation plus an extra copy.
+- duckstation-008 | Upload raw data and convert it on the GPU | Converting pixel formats on the CPU doubles the bytes sent and runs serially.
+- duckstation-009 | Shrink data on the GPU before reading it back | GPU→CPU readbacks stall the pipeline and are limited by bus bandwidth.
+- duckstation-011 | Present a sub-rectangle of the source instead of copying it out | If the next stage can read a region of an existing resource, pass it the source plus a rectangle instead of copying that region into a new resource.
+- duckstation-013 | Use the dedicated copy primitive instead of a general-purpose path | APIs often offer both a general operation (blit or draw with scaling, filtering and state) and a narrow one (raw copy).
+- duckstation-070 | Convert every primitive type to triangles so draws batch together | Each primitive topology (lines, points, triangles) needs its own pipeline or draw call.
+- duckstation-071 | Shadow graphics API state and skip redundant calls and queries | Driver calls cost CPU time even when they change nothing, and `glGet*` queries can stall the pipeline.
+- duckstation-072 | Specialize shaders and vertex formats to the features actually enabled | Generic shaders that clamp, filter or carry extra attributes "just in case" pay in bandwidth and ALU on every vertex and fragment.
+- duckstation-073 | Pack narrow data into wider texels for readback | A GPU-to-CPU readback is limited by bandwidth and staging-buffer size.
+- duckstation-075 | Keep snapshots on the GPU and reuse their storage | If saved state only needs to be restored, never inspected, copy it GPU-to-GPU instead of reading it back to the CPU.
+- duckstation-077 | Allocate immutable texture storage | If you declare a texture's size, format and mip count once with immutable storage, the driver can lay it out up front and skip per-use completeness and validation checks.
+- duckstation-108 | Use clear commands for solid fills instead of drawing | Filling a rectangle with one color by drawing a quad means binding a pipeline and running shaders.
+- duckstation-109 | Handle edge cases on the GPU instead of reading data back to the CPU | A GPU-to-CPU readback stalls the pipeline and moves the whole surface across the bus twice.
+- duckstation-110 | Tell the GPU when a render target's old contents don't matter | On tile-based mobile GPUs, starting a render pass without a clear or invalidate means the previous contents are loaded from memory into tile storage.
+- duckstation-111 | Give the shader compiler what it needs to know | Shader compilers optimize better when they know buffers don't alias (`readonly restrict`), when loops have a fixed count (`[unroll]`), and when a variant contains no unconditional `discard`.
+- duckstation-113 | Keep and reuse GPU textures and contexts instead of recreating them | Creating textures and contexts involves driver allocation, validation and sometimes a pipeline flush.
+- duckstation-115 | Shorten the presentation queue to cut latency | Each extra swap-chain buffer or queued frame adds up to one frame of input-to-display latency.
+- duckstation-163 | Shadow API state and skip redundant driver calls | Graphics APIs with global state (GL, D3D11) charge per call, so re-sending unchanged state each draw wastes CPU in the driver.
+- duckstation-164 | Don't restart render passes for clears or unchanged targets | On tiled GPUs especially, ending and restarting a render pass flushes tile memory to DRAM and reloads it.
+- duckstation-165 | Track dirty regions finely to avoid unnecessary syncs and copies | A single coarse “dirty” rectangle forces a flush or copy whenever any read overlaps it.
+- duckstation-166 | Read the framebuffer in the shader instead of splitting draws | Blend modes that fixed-function hardware can't express usually mean multiple passes, a separate depth/mask buffer, or one draw per primitive.
+- duckstation-167 | Copy within a resource instead of through a shadow copy | If the API allows copies within the same texture, do the copy directly when source and destination don't overlap.
+- duckstation-168 | Emit quads as indexed geometry | Drawing quads as raw triangle lists duplicates two of the four vertices.
+- duckstation-171 | Prune variant permutations that can never be used | Shader permutation counts multiply across dimensions.
+- duckstation-172 | Track last use to pick the cheap upload path | Updating a resource that the GPU may still be reading needs a staged copy ordered in the command stream.
+- duckstation-173 | Use integer texel fetches for exact lookups | When a shader wants an exact texel (palette lookups, unfiltered VRAM reads), converting to normalized float coordinates and going through the sampler costs a multiply and filtering setup, and risks rounding…
+- duckstation-174 | Cull primitives on the CPU before they reach the batch | Clamp a primitive's bounds to the clip rectangle once.
+- duckstation-175 | Import host memory so the GPU reads into it directly | GPU-to-CPU readbacks normally land in a driver staging buffer and then get copied again into application memory.
+- duckstation-204 | Keep uploaded results resident on the device, not just on the host | Caching decoded data in RAM still costs a host-to-device copy every time it is used.
+- duckstation-205 | Prune shader permutations that can never be used | Pipeline caches are built from the cross product of feature switches, and many combinations are impossible under the current config.
+- duckstation-206 | Turn baked-in constants into uniforms to collapse variants | Each value baked into generated code as a literal multiplies the number of distinct programs.
+- duckstation-207 | Enable expensive optional features only in the programs that use them | Some driver paths get slower when a program merely declares a feature (framebuffer fetch, dual-source blending), even if it never uses it.
+- duckstation-208 | Choose the copy method that keeps the current render pass alive | On tile-based GPUs, ending a render pass flushes tile memory to DRAM, which costs a lot.
+- duckstation-209 | Draw and clear only the pixels that need it | Fill rate and memory bandwidth scale with the pixels touched.
+- duckstation-210 | Compare batch-break keys against current state, not derived copies | Draw batching ends a batch whenever the state key changes.
+- duckstation-211 | Choose the buffer-upload strategy the driver is fast at | Streaming vertex or uniform data has several API strategies (persistent mapping, map-unsynchronized with orphaning, sub-data), and their speed varies a lot between drivers.
+- duckstation-249 | Skip render passes that would have no effect | An intermediate pass costs a full-screen read and write of bandwidth.
+- duckstation-250 | Don't build frames that will never be shown | When output runs faster than the display, for example during fast-forward, decide first whether this frame will be presented.
+- duckstation-251 | Don't break a render pass unless you must | On tiled GPUs and modern APIs, ending and restarting a render pass flushes tile memory and can force load and store operations.
+- duckstation-252 | Keep a small dedicated buffer for per-draw constants | Streaming a handful of per-draw constants through a big shared uniform ring brings alignment padding (often 256 bytes), map and unmap bookkeeping, and descriptor rebinding with every draw.
+- duckstation-253 | Do the CPU work before blocking on a fence, when it's safe | When the CPU must wait for submitted GPU work, check whether the next per-frame resource is already free.
+- duckstation-255 | Reuse an intermediate result you already have instead of copying it | If an earlier step has already produced the image or buffer a later step needs, pass that object along.
+- duckstation-327 | Track a dirty rectangle so clears and copies cover only what changed | Keep the union of the areas actually written since the last reset.
+- duckstation-328 | Skip redundant graphics-API state updates, and batch the ones you do make | Re-binding descriptors or setting state that hasn't changed, or isn't used, costs CPU in the driver.
+- duckstation-329 | Write GPU readback results with a compute shader directly into the destination buffer | The render-to-texture, copy-to-staging, read-back path adds a full intermediate surface and copy.
+- duckstation-330 | Change presentation mode per present instead of recreating the swap chain | Recreating a swap chain to toggle vsync is expensive and causes hitches, so with blocking vsync people skip presents instead.
+- duckstation-343 | Accumulate draws into persistently mapped buffers and flush only on state change | Write vertices straight into a mapped stream buffer through a cursor pointer.
+- duckstation-344 | Page-indexed texture cache with content-hash reuse and intrusive lists | Index cached textures by the fixed-size pages of source memory they cover, so a write invalidates only the sources on the touched pages.
+- flycast-043 | Offer cheaper framebuffer formats and hardware-accelerated surfaces | Fill rate and bandwidth grow with bits per pixel.
+- flycast-067 | Shadow API state and skip redundant driver calls | Graphics drivers often do validation work on every state-setting call even when the value hasn't changed.
+- flycast-070 | Merge many small draw calls into one range draw | Each draw call costs CPU time in the driver.
+- flycast-071 | Use a minimal shader for depth-only passes | A pass that only writes depth doesn't need textures, lighting or blending.
+- flycast-073 | Keep rendered results on the GPU instead of reading them back | Reading pixels back from the GPU stalls the pipeline and then costs CPU conversion and a re-upload.
+- flycast-074 | Avoid pixel formats the driver emulates slowly | Some drivers silently convert packed 16-bit formats on every access.
+- flycast-075 | Skip the intermediate buffer when no scaling is needed | Rendering to an offscreen target and then blitting it to the screen costs a full extra pass of fill rate and bandwidth.
+- flycast-090 | Shadow driver state and drop redundant state calls | Keep a CPU-side copy of every piece of API state you set, and skip the call when the new value equals the cached one.
+- flycast-119 | Drop empty work items before they reach the GPU | Zero-length draws and empty passes still cost state changes and command overhead.
+- flycast-120 | Build indices in a separate pass and merge compatible strips | Don't emit indices while parsing. Do it in a later pass that can see neighboring primitives, so consecutive strips with identical state can be joined with repeated (degenerate) vertices into one draw. Invalid…
+- flycast-122 | Keep palette indices on the GPU and look up colors in the shader | If indexed images are expanded to full color on the CPU, every palette change forces every affected image to be decoded and uploaded again.
+- flycast-123 | Push constants for small per-draw parameters | Small per-draw values written straight into the command buffer as push constants need no buffer allocation, mapping or descriptor update for each draw.
+- flycast-124 | Put each buffer in the right memory heap | GPU-only buffers belong in device-local memory and should be filled through a staging buffer.
+- flycast-125 | Linear tiling for small textures that change often | An optimally tiled image needs a staging copy and a layout transition on every update.
+- flycast-126 | Record uploads into one command buffer per frame | Every command buffer has its own allocation, begin/end and submission cost.
+- flycast-127 | Asynchronous GPU readback | A synchronous read of GPU results stalls the CPU until the GPU finishes.
+- flycast-129 | Cache descriptor bindings by resource identity | Allocating and writing a descriptor set for every draw is expensive.
+- flycast-142 | Upload constant geometry once | When a draw always uses the same few vertices, store them in a static GPU buffer at init, one buffer per variant.
+- flycast-143 | Memoize per-object GPU bindings within a frame | If the same object is drawn several times in one frame (by multiple passes, for example), build its binding state the first time and reuse it after that.
+- flycast-144 | Merge consecutive draws with identical state | When adjacent primitives share every piece of render state, append them to one index range and issue one draw call.
+- flycast-145 | Primitive restart instead of degenerate triangles | You can join triangle strips into one draw by repeating vertices to create zero-area triangles.
+- flycast-148 | Move per-vertex transforms from CPU to GPU | Multiplying every vertex by model and projection matrices is exactly the work a vertex shader does in parallel.
+- flycast-151 | Present only when a new frame exists | A swap or present call can block on vsync and costs a compositor round trip.
+- flycast-154 | Don't allocate surface buffers you never use | If all real rendering goes to offscreen framebuffers, the window's swap-chain surface needs no depth or stencil planes.
+- flycast-156 | Retire GPU resources at the frame fence | A resource the GPU may still be reading can't be freed right away, and waiting for the device to go idle stalls the pipeline.
+- flycast-170 | Let fixed-function hardware interpolate, via shader variants | Interpolating attributes by hand in the shader, with flat w and `noperspective` plus manual multiplies, or clipping on the CPU, competes with hardware built for exactly that.
+- flycast-174 | Allocate immutable storage once, then update in place | Re-specifying a texture with a full "create image" call each time makes the driver re-validate and often reallocate it.
+- flycast-175 | Do the indirection lookup in the shader, filter by hand | Indexed-colour images have to be expanded to full colour before the hardware can filter them.
+- flycast-176 | Present each frame once, and draw overlays only when they are visible | Full-screen copies and overlay passes cost fill rate and bandwidth even when they add nothing to the image.
+- flycast-179 | Hash the payload and skip uploads that would change nothing | Re-uploading identical data every frame costs bus bandwidth and driver synchronisation.
+- flycast-180 | Let fixed-function hardware absorb a convention mismatch | When the source system and the host API disagree on a convention, such as which vertex gives a flat-shaded triangle its colour, the fallback is a CPU pass that rewrites all the geometry every frame.
+- flycast-181 | Let the vertex fetch unit normalise integers | Declaring byte attributes as normalised (UNORM) makes the input assembler convert them to the 0–1 float range for free.
+- flycast-182 | Don't fetch attributes the shader variant never reads | Every declared vertex attribute costs input-assembler bandwidth even if the shader ignores it.
+- flycast-183 | Follow vendor best-practice hints for sampler state | Some GPUs run a slower sampler path when the three wrap modes differ or when LOD clamping is enabled, even for 2-D textures that never use them.
+- flycast-184 | Don't throw away compiled pipelines on a resize | Compiled GPU pipelines are expensive to create and don't depend on framebuffer size.
+- flycast-218 | Shadow API state to skip redundant driver calls, and pool object names | Every GL call costs driver validation even when it changes nothing.
+- flycast-219 | Pack render state into an integer key and build pipelines lazily | Pack every state bit that affects a pipeline into one 64-bit key.
+- melonds-051 | Read GPU results back asynchronously through a staging buffer | A synchronous readback stalls the CPU until the GPU has finished every queued command.
+- melonds-052 | Keep big data on the GPU; send it a small per-pixel recipe | If the CPU does the final composition, a high-resolution GPU image has to cross the bus every frame.
+- melonds-053 | Submit GPU work early and don't let presentation block the producer | GL drivers can hold commands in a client-side queue.
+- melonds-109 | Batch draw calls by sorting on a state key | GPU drivers charge per draw call and per state change.
+- melonds-110 | Replace full pipeline drains with fences and double buffers | `glFinish`-style calls stall the CPU until the GPU has drained all queued work, which serializes the two processors.
+- melonds-111 | Lay out GPU-shared structs to the API's alignment rules | Uniform and constant buffers have strict alignment and size rules (std140: 16-byte multiples).
+- melonds-132 | Don't do filtering on the CPU path when a GPU path exists | Smooth image scaling in a CPU 2D painter is a per-pixel resample that can eat the whole frame budget.
+- melonds-134 | Two-level tile binning with bitmasks | A tiled GPU rasteriser first assigns primitives to screen tiles so each tile only shades what touches it.
+- melonds-135 | Bucket GPU work by pipeline state with a counting sort, then dispatch per bucket | Branching on material or blend mode inside one shader causes divergence and register pressure.
+- melonds-136 | Let the GPU size its own dispatches (indirect dispatch) | If the CPU needs a count the GPU just produced, it must stall on a readback.
+- melonds-137 | Specialised shader permutations plus redundant-state elision | One "uber" shader that branches on mode flags pays for the worst-case register count everywhere.
+- melonds-145 | Upload only the dirty sub-ranges of a GPU texture | Re-uploading a whole texture each frame wastes bus bandwidth when only a few blocks changed.
+- melonds-146 | Pack per-row parameters into spare channels of the data the shader already reads | If a parameter varies per row and is passed as a uniform, you need one draw per row or you get it wrong.
+- mesen2-037 | Throttle and filter UI refresh notifications | A producer that can emit thousands of updates per second will swamp a UI thread that redraws on each one.
+- mesen2-038 | Use the renderer's native pixel format | If bitmaps are stored in a format other than the one the drawing backend composites in, every draw converts each pixel.
+- mesen2-039 | Draw only the visible range, with a fast path for simple content | Virtualize a large view: ask the data source for just the visible rows, and bound the loop by row count rather than pixel height.
+- mesen2-071 | Keep long-lived device resources across sessions | Tearing down and rebuilding a renderer, connection or context on each new document repeats setup work that rarely changes.
+- mesen2-107 | Track dirtiness and skip uploads and presents when nothing changed | A render loop that wakes on a timer redraws and re-uploads overlays even when they are identical to last time.
+- mesen2-112 | Batch UI notifications during bulk changes | Each "changed" event can trigger a full re-render or re-sort of every listener.
+- mesen2-114 | Use virtualizing controls for large or growing content | Generic text boxes and repeaters build layout for the whole content, so selection, scrolling and updates cost O(total size).
+- mesen2-115 | Bind once at the container instead of walking ancestors per item | Bindings that search the visual tree for an ancestor (`$parent[...]`) are resolved per templated item and fail noisily before the tree is attached.
+- mesen2-133 | Wrap the pixel buffer in place instead of converting it | High-level image APIs often copy or convert a bitmap before drawing it.
+- mgba-033 | Write shader math in the GPU's native vector float types | Older GPUs emulate integer operations. Express the math in floats and pack paired scalar work into vec2 and dot operations so it maps onto the GPU's vector lanes.
+- mgba-053 | Offload layout transforms, copies and fills to hardware engines; fence lazily | Give memory-bound swizzles, copies and clears to the DMA engine, blitter or GPU, and wait on its completion only when you consume the result.
+- mgba-065 | Allocate textures once, update in place, describe native layout | Re-specifying a texture every frame can force the driver to reallocate.
+- mgba-099 | Flush and upload only the bytes you wrote; bind state only when it changes | Cache maintenance and GPU upload costs scale with the bytes touched.
+- mgba-121 | Record changes in a shadow copy plus dirty bits, then flush in batches | Collect work while the state stays the same and submit it as one batch when the state changes.
+- mgba-122 | Store per-line parameters as arrays the shader indexes | If a parameter changes along one axis of a batch, move it from per-draw state into per-element data (a uniform array, vertex attribute or texture) that the shader indexes.
+- mgba-124 | Fuse passes whose output is consumed immediately | When each pass's output is only read by the next pass, merge them into one and keep the intermediate values in registers.
+- mgba-127 | Bake fixed pipeline state into objects once | Don't respecify state on every call. Build state objects once, look up handles at setup, and bind with a single call.
+- mgba-130 | Group draws by state and flush caches once per frame | Flush a batch only when its state key (texture) changes.
+- mgba-155 | Store mid-batch state as indexed data so batches don't split | If a parameter changes partway through what would otherwise be one draw, don't flush and re-upload.
+- mgba-156 | Upload packed integers as integer textures | Keep binary data in its native integer form on the GPU and decode it with shifts and masks.
+- mgba-158 | Replace a constant-output pass with a clear | When a pass would produce a uniform result, a hardware clear or fill is far cheaper than a shader pass: no program switch, no uniform upload, no fragment work, and often a compressed fast-clear.
+- mgba-159 | Don't pass large arrays by value in shaders; short-circuit on priority | Shader compilers may copy array parameters into registers or scratch memory.
+- mgba-172 | Instanced drawing for many small items | Move per-item parameters from uniforms into per-instance attributes, accumulate items, and submit one instanced draw.
+- mgba-191 | Let the platform's audio hardware or OS mixer do rate conversion | On weak CPUs, give dedicated DSPs or the system mixer data at your native rate and let them resample it, instead of doing the math on the CPU.
+- mgba-212 | Submit rather than drain the GPU; queue commands to the API's owner thread | `glFinish` blocks the CPU until the GPU has finished all queued work.
+- pcsx2-032 | Write uploads straight into mapped destination memory | Decoding into a static staging buffer and then copying into a GPU resource touches every byte twice.
+- pcsx2-033 | Skip redundant graphics API state calls | Each driver call has fixed overhead, so setting the same state, or opening and closing a scene, for every draw adds up quickly.
+- pcsx2-082 | Age out idle pooled resources | An object pool avoids the cost of creating objects, but without a limit it keeps every object ever made and pins memory (or VRAM) after a spike.
+- pcsx2-083 | Size buffers to the content actually seen, not the worst case | Allocating every buffer at the largest size you might ever need multiplies fill, clear and bandwidth costs for the common smaller case.
+- pcsx2-119 | Shadow GPU state and skip redundant API calls | Each graphics API call costs driver validation even when it sets the value that is already there.
+- pcsx2-120 | Bind context-global resources once | Some bindings belong to the context rather than to the object you are drawing with.
+- pcsx2-121 | Prefer async-capable upload paths to synchronous mapping | Mapping a GPU buffer can force the CPU to wait until the GPU has finished with it.
+- pcsx2-122 | Immutable storage so the driver validates once | If a resource can change shape or format at any time, the driver has to recheck it whenever it is used.
+- pcsx2-123 | Don't allocate an output nobody reads | A pass that exists only to write depth or stencil doesn't need a colour target.
+- pcsx2-124 | Index shared vertices instead of duplicating them | Expanding strips and fans into independent triangles copies each shared vertex up to three times.
+- pcsx2-149 | Stream through a persistently mapped ring buffer | Mapping and unmapping a buffer for every upload, or calling sub-data, costs a driver round trip and sometimes a sync.
+- pcsx2-150 | Don't run a cheap pre-pass under an expensive exact pass | When an exact method already handles a case, a coarse pre-filter in front of it only adds work.
+- pcsx2-156 | Restrict clears, copies and readbacks to the touched region | Full-surface operations cost in proportion to the surface size, not the work, and they get worse as resolution scales up.
+- pcsx2-157 | Set state once instead of toggling and restoring it | Saving state, changing it and restoring it around each operation doubles the driver calls.
+- pcsx2-160 | Move work from a stage that needs a barrier into one that doesn't | If an exact result in a fixed-function stage needs the full feedback path (read back, then barrier), compute the hard part earlier, where it is cheap and exact, and leave the fixed unit only a simple…
+- pcsx2-163 | Declare only the bindings each program uses | Some drivers revalidate every active binding when any one of them changes.
+- pcsx2-164 | Emit one strip instead of separate primitives | A quad emitted as two separate triangles writes 6 vertices and ends two primitives.
+- pcsx2-220 | Read from the original instead of copying when nothing differs | If the copy would be identical to the source (same size, same format, no reinterpretation), let the consumer read the source directly and mark it as shared.
+- pcsx2-221 | Do transfers where the data already is | When both the source and destination of a copy already exist in device memory, do the copy on the device.
+- pcsx2-222 | Simplify blend math using known value ranges | If an operand's range is known per batch (alpha is exactly 0 or 1, or two terms are equal), rewrite `(A−B)·C + D` into a simpler equivalent and drop modes that turn out to be no-ops.
+- pcsx2-223 | Issue barriers only when a shader reads what it writes | GPU texture barriers serialise work and can split one draw into one draw per primitive.
+- pcsx2-224 | Use hardware modes when the emulated one is equivalent | If a general mode that needs shader emulation reduces, for the current parameters, to a mode the hardware supports natively, switch to the native mode.
+- pcsx2-225 | Pack scalar uniforms into vec4 padding | Uniform buffers are laid out in 16-byte slots, so a lone float in its own vec4 wastes 12 bytes and costs extra upload and comparison.
+- pcsx2-226 | Persist compiled shader binaries keyed by source hash | Compiling and linking shaders at runtime causes stutter and slows startup.
+- pcsx2-227 | Pick memory types by access direction | CPU-to-GPU upload buffers should be write-combined and coherent, so no flushes are needed.
+- pcsx2-269 | Keep several batches open and resume the one that matches | A guest that switches back and forth between a few render states forces a flush at every switch, which produces many tiny draws.
+- pcsx2-270 | Don't attach a depth buffer the draw can't observe | If depth writes are masked and the depth test provably always passes, the depth attachment has no effect except bandwidth, allocation and target growth.
+- pcsx2-271 | Push descriptors inline instead of allocating sets per frame | Allocating and updating descriptor sets from per-frame pools for every draw costs CPU time and pool management.
+- pcsx2-273 | Merge dirty rectangles into fewer uploads | Each texture upload has fixed driver and synchronization overhead.
+- pcsx2-274 | Prove no overlap before paying for a hazard copy or barrier | Sampling from the render target being drawn normally needs a copy or a barrier.
+- pcsx2-275 | Filter redundant API state changes with a shadow copy | Driver calls to bind resources or upload constants cost CPU time even when nothing changes.
+- pcsx2-276 | Stage constant data into device-local memory | Reading constants directly from CPU-visible upload heaps makes the GPU fetch them over the bus on every access.
+- pcsx2-298 | Cache pipeline objects under a packed state selector | Creating GPU pipeline objects is expensive.
+- ppsspp-001 | Shadow driver state and drop redundant sets | Calls into a graphics driver (or any stateful API) cost a lot even when they change nothing.
+- ppsspp-003 | Defer and merge many small submissions into one batch | Fixed per-call overhead dominates when each call carries little data.
+- ppsspp-030 | Skip presenting a frame that hasn't changed | Copying the back buffer to the screen costs bandwidth and may block on vsync.
+- ppsspp-031 | Tell tiled GPUs the old contents are garbage | Mobile tile-based GPUs must load the previous framebuffer contents into tile memory unless told they are irrelevant.
+- ppsspp-032 | Rotate through several buffers to avoid producer–consumer stalls | Overwriting a buffer the GPU (or any async consumer) may still be reading forces the driver to stall or copy.
+- ppsspp-033 | Coalesce many small uploads into one call | When all elements of an array-valued parameter changed, upload them in one call over a contiguous staging array instead of one call per element.
+- ppsspp-066 | Filter redundant state changes before they reach the driver | Graphics and device APIs often do validation or flush work on every call, even when the value is unchanged.
+- ppsspp-070 | Push per-element fixups into the shader | A transformation applied to every element on the CPU before upload, such as a channel reorder or a sign flip, can usually be one swizzle or multiply in the shader, where it costs nothing.
+- ppsspp-072 | Remove false dependencies that force batches to be split | A batching pipeline often flushes on any state change, including changes that don't affect pending work.
+- ppsspp-093 | Shadow driver state and drop redundant state calls | Calls into a graphics driver or other stateful API cost far more than comparing two integers.
+- ppsspp-108 | Know metadata at generation time instead of querying the driver | If you generate code yourself, you already know which inputs it uses.
+- ppsspp-123 | Early-out in a shader when the effect would not be visible | A costly per-pixel filter is pointless when its output can't differ visibly from a plain sample.
+- ppsspp-138 | Stream GPU uploads through linear sub-allocated buffers | Creating a new image or memory allocation per upload is slow, and so is locking a resource the GPU may still be reading.
+- ppsspp-147 | Encode a per-item flag into the data to keep a batch together | When a small state change would split a batch, check whether that state can be expressed in the batched data instead.
+- ppsspp-152 | Make rejected pixels invisible instead of discarding them | A `discard` in a fragment shader stops the GPU from doing depth and stencil testing before shading, and it is costly on tile-based GPUs.
+- ppsspp-161 | Track the last value you set and skip repeated API calls | Driver calls cost much more than comparing two integers.
+- ppsspp-162 | Merge consecutive passes that target the same output | On tiled GPUs, each render pass loads the framebuffer from memory and stores it back.
+- ppsspp-163 | Tell the hardware what you won't need, and fold transitions into the pass | Mark attachments whose contents aren't needed after a pass as "don't care" for storing, so the GPU skips writing them back.
+- ppsspp-187 | Restructure compute shaders around the input, and drop needless square roots | For upscaling filters, run one invocation per input pixel and have it write the whole N×N output block.
+- ppsspp-188 | Shrink the work area and turn off unused features | A full-screen pass over a region whose touched area is known wastes fill rate.
+- ppsspp-198 | Don't allocate, load, store or transition attachments a pass doesn't use | On tiled GPUs, every attachment in a render pass costs memory bandwidth to load and store, and every layout transition costs a barrier.
+- ppsspp-199 | Batch API calls into arrays, and narrow what each barrier waits for | Graphics APIs charge a fixed validation and dispatch cost on each call.
+- ppsspp-200 | Shadow driver state and skip redundant state-setting calls | Keep a CPU-side copy of the last value sent for each piece of state.
+- ppsspp-201 | Specialize away math the current state makes unnecessary | When code is generated or selected from state, check whether each operation can affect the output and emit it only if it can.
+- ppsspp-231 | Use a hardware feature to drop a software fallback path | If a device extension provides a behavior natively, such as last-vertex provoking for flat shading, enable it when available.
+- ppsspp-262 | Specialize generated shaders to drop unused features entirely | When you generate shader source at run time, gate every optional stage on a feature flag computed once from device and settings.
+- snes9x-025 | Offload scaling and colour conversion to a hardware or library path | Hand-written per-pixel scaling loops are slow.
+- snes9x-047 | Render the final pass directly to the output surface | In a multi-pass post-processing chain, the last pass doesn't need its own offscreen target that is then drawn again to the screen.
+- snes9x-048 | Set GPU state once, not every frame | If the draw is always the same full-screen quad, bind vertex attribute pointers, enable arrays and upload vertex data once at setup or on resize.
+- snes9x-049 | Stream uploads through write-only, invalidated pixel buffers | Write each frame into a mapped pixel-unpack buffer and upload from it asynchronously instead of passing a CPU pointer to `glTexSubImage2D`.
+- snes9x-080 | Throttle right before present, inside the output driver | Frame pacing done far from the swap (in the main loop) gets jitter from all the work in between.
+- snes9x-081 | Bound frames in flight separately from swapchain size | Allocating per-frame CPU resources (command buffers, fences, descriptor sets) for every swapchain image ties latency to however many images the driver hands back.
+- snes9x-082 | Wait on a specific fence instead of idling the whole device | A device-wide idle wait drains every queue and stalls the pipeline.
+- snes9x-083 | Choose the presentation mode for the latency goal | FIFO blocks the producer on vblank. Mailbox replaces the queued image without blocking. Immediate presents with tearing. Pick per mode: FIFO for vsync, immediate or else mailbox when vsync is off, and mailbox…
+- snes9x-084 | Wait for actual presentation to keep CPU and display in lockstep | Fences only report when the GPU has finished.
+- snes9x-085 | Make pipeline barriers as narrow as possible | A barrier that names `ALL_GRAPHICS` stages and broad access masks forces the GPU to drain more work than it needs to.
+- snes9x-086 | Pick the GPU's native pixel layout | Surfaces and swapchains on most desktop GPUs are natively BGRA.
+- snes9x-087 | Size textures to the image, not to a padded power of two | Allocating a fixed 1024×1024 texture for a 256×224 image wastes memory and makes texture-coordinate maths depend on padding.
+- snes9x-088 | Declare the real row alignment of uploaded pixel data | OpenGL assumes 4-byte row alignment by default.
