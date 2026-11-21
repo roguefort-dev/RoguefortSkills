@@ -1,32 +1,23 @@
-# Lens: io (299 techniques)
+# Lens: io (266 techniques)
 
 File and device I/O: syscalls, buffering, async and vectored I/O, mmap, read-ahead.
 
 Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
 
-- ares-029 | Rate-limit expensive host queries | If a host API call is costly and its result changes slowly, remember when you last called it and return immediately if less than N ms have passed.
-- ares-030 | Batch small writes into a buffer before the syscall | One system call per tiny item is dominated by per-call cost.
 - ares-070 | Track state from events instead of polling a syscall | Querying the OS for state that changes rarely costs a syscall each time, and hot code may ask thousands of times per frame.
 - ares-104 | Sleep for the computed drain time instead of spinning | When a producer must wait for a consumer to drain a buffer, work out how long the excess will take to drain and sleep that long.
 - ares-105 | Bound producer queues to the latency target | A ring buffer with no fill limit lets a fast producer run far ahead.
 - ares-106 | Load in the background and block only on unloaded bytes | Start a large sequential load on a worker thread and return at once.
 - ares-148 | Keep the device buffer small and the queue deep | If the audio device buffer is sized for the full user latency, the API may not refill it in time when the producer is bursty.
-- curl-122 | Assemble a message in user space, then write it in one call | Build headers, framing and small bodies into one contiguous buffer and hand it to the kernel with one write.
 - curl-123 | Trust readiness: read until EAGAIN instead of probing before each read | If an outer event loop already said a descriptor is ready, read from it until it reports would-block.
 - curl-124 | Read in large blocks below the parser, and keep the leftovers | Pull as many bytes as the kernel has into a large user-space buffer, parse lines or records out of it, and keep the unconsumed tail for the next call.
 - curl-125 | Fill the caller's buffer instead of returning one record per call | A layer that decodes framed input should keep decoding until the caller's buffer is nearly full or the source would block.
 - curl-126 | Make every socket operation non-blocking | Never let a thread block on connect, read or write.
-- curl-127 | Create descriptors with their final flags in the creating call | Pass non-blocking and close-on-exec at creation (`SOCK_NONBLOCK|SOCK_CLOEXEC`, `pipe2`, `accept4`, `O_CLOEXEC`).
-- curl-128 | Delete syscalls whose answer is already known | Audit hot and setup paths for calls whose result is implied by an earlier result, duplicated by another mechanism, or never used: probe sockets, existence checks before an open, error queries after success.
-- curl-129 | Read the clock once per logical operation and pass it down | Take one timestamp at the start of an operation or loop iteration and hand it to every callee.
-- curl-130 | Rate-limit expensive tuning calls, per shared resource | Run syscalls that adjust or query OS state for tuning (buffer sizes, statistics) at most once per time interval.
+- curl-130 | Rate-limit expensive tuning calls, per shared resource | Run syscalls that adjust or query OS state for tuning (buffer sizes, statistics) at most once per time interval. (also: ares)
 - curl-131 | Keep liveness probes cheap: zero timeout, only where needed, cached briefly | A "is the peer still there?" check should be a non-blocking zero-timeout probe, run only on paths that act on the answer.
 - curl-132 | Use poll() with a compact, deduplicated descriptor list instead of select() | Wait with `poll()` on exactly the descriptors of interest, one entry per descriptor with combined events, built in a single pass.
-- curl-133 | Batch datagram receive: recvmmsg plus GRO, fewer but larger buffers | Receive many datagrams per syscall (`recvmmsg`), let the kernel coalesce same-flow datagrams into large buffers (UDP GRO), and pass the coalesced buffer and segment size up in one callback.
-- curl-134 | Batch datagram send with segmentation offload, sized to the send quantum | Pack equal-size outgoing datagrams into one buffer and send it with a single `sendmsg` carrying a segment size (UDP GSO).
 - curl-135 | Wake event loops through a descriptor, using the lightest primitive available | When another thread needs to interrupt an event loop, give the loop a readable descriptor to watch.
 - curl-136 | Block on readiness with a real timeout, never sleep-poll or zero-poll | When waiting for input or writability, block in `poll`/`select` with a meaningful timeout.
-- curl-137 | Seek to an offset instead of reading and discarding up to it | To resume or skip into an input stream, ask the source to seek.
 - curl-138 | Keep exactly one buffering layer on file output | If the data already arrives in large blocks, write it with raw `write()` and skip stdio's buffer.
 - curl-139 | Read and compute only what you will use | Bound reads from sources that might be huge or endless.
 - dolphin-049 | Read aligned runs in one request | A block reader that fetches one sector at a time through a one-entry cache pays per-request overhead for every sector of a large read.
@@ -38,21 +29,21 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-109 | Turn many tiny readbacks into one block read plus a cache | Every synchronous read from a device (GPU, disk, remote service) pays a large fixed round-trip cost no matter how small it is.
 - dolphin-141 | Drop outgoing messages that wouldn't change the remote state | If a peer's state is fully determined by a value you send, remember the last value sent and suppress any message that repeats it.
 - dolphin-179 | Don't zero buffers you will overwrite, and reset reusable state objects | Filling a buffer with zeros right before a read overwrites it doubles the memory traffic.
-- dolphin-180 | Cache the last decoded block and decrypt in place | Sequential small reads from a block-encrypted source usually hit the same block repeatedly.
+- dolphin-180 | Cache the last decoded block and decrypt in place | Sequential small reads from a block-encrypted source usually hit the same block repeatedly. (also: Flycast)
 - dolphin-181 | Prefetch assets on a background thread | Loading large assets from disk on first use stalls the frame that needs them.
 - dolphin-214 | Keep handles open and query results resident | Opening a file per read, re-parsing a header on every query, or asking a driver for a value that never changes adds syscalls, synchronization and allocation for nothing.
 - dolphin-225 | Batch small messages and send diagnostics less often | For tiny payloads, per-packet protocol overhead dominates.
 - dolphin-241 | Keep a handle you already know instead of asking the OS again on every poll | OS queries such as "which window is under this point" and "which process owns it" are system calls.
 - dolphin-268 | Wait on all sources at once with one readiness call | Polling N sockets one after another, each with its own timeout, adds up their latencies, and a busy socket waits behind an idle one.
-- dolphin-269 | Write persistent state once per batch, and only when it changed | Saving a cache or metadata file after every item in a bulk operation makes the operation's I/O grow with the number of items.
-- dolphin-270 | Batch per-item network exchanges, and make the common message tiny | When each item does its own request and wait, the round trips add up.
+- dolphin-269 | Write persistent state once per batch, and only when it changed | Saving a cache or metadata file after every item in a bulk operation makes the operation's I/O grow with the number of items. (also: Flycast)
+- dolphin-270 | Batch per-item network exchanges, and make the common message tiny | When each item does its own request and wait, the round trips add up. (also: Flycast)
 - dolphin-296 | Pick the codec for the direction that is latency-critical | When data is compressed rarely but decompressed while a user waits, choose an algorithm with very fast decompression, even if its ratio is slightly worse.
 - duckdb-117 | Plan reads ahead, then fetch them in a few large, coalesced requests | Before reading, collect every byte range the next unit of work needs.
 - duckdb-118 | Remove round trips: reuse connections, cache validators, list lazily | Every request that does not carry payload you need (HEAD, re-validation, a full listing, a new TLS handshake) is pure latency.
 - duckdb-119 | Cache remote bytes in fixed, aligned blocks | Cache remote file data in fixed-size, aligned blocks inside the engine's memory manager, and hand out handles into the cache instead of copies.
 - duckdb-120 | Make persistence cost proportional to what changed | On checkpoint, snapshot or save, rewrite only dirty units and point to the previous version of everything else.
 - duckdb-121 | Write bulk data as it is produced; commit by linking, log pointers not payload | For large writes, persist finished blocks to their final location right away.
-- duckdb-122 | Group commit: one fsync for many committers, with I/O outside the lock | Do transaction-private I/O before taking the commit lock, append only a small marker under the lock, and let concurrent committers share one durable sync.
+- duckdb-122 | Group commit: one fsync for many committers, with I/O outside the lock | Do transaction-private I/O before taking the commit lock, append only a small marker under the lock, and let concurrent committers share one durable sync. (also: PostgreSQL)
 - duckdb-123 | Pay for durability only where data must survive | Logging, checksums and fsync protect data across crashes and restarts.
 - duckdb-124 | Turn random point accesses into computed seeks or sorted batches | Do not reach item k by scanning items 0..k-1, and do not fetch rows one at a time in random order.
 - duckdb-125 | Open lazily: read metadata only when it is first touched | On open, read only top-level pointers. Deserialize per-table, per-column and per-segment metadata, delete info, indexes and logs on first use, and skip payloads that a pass does not need.
@@ -83,30 +74,25 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-263 | Cache decoded assets in memory with an LRU, and parse from memory | Re-reading and re-parsing a small asset from disk every time it is used costs a syscall and a decode each time.
 - duckstation-274 | Don't compress data that is already compressed | Running a general-purpose compressor over archives, images or media burns CPU for little or no size reduction.
 - duckstation-325 | Move blocking file writes off the latency-critical thread | Synchronous file I/O on a real-time thread causes stutter when storage is slow.
-- flycast-014 | Remove logging from per-event hot paths | Formatted console output is a slow system call.
 - flycast-039 | Cache remote assets on local storage | Before fetching an asset over the network, look for a local copy keyed by its name.
 - flycast-040 | Pass settings through a direct call, not a file round-trip | If two components in the same process exchange settings by writing a config file and having the other side parse it, every change costs file I/O and string parsing.
 - flycast-041 | Send input across the boundary when it changes, not every frame | If input state is copied across an expensive boundary (JNI, IPC) once per frame, you pay that cost even when nothing changed, and new input can wait up to a frame.
-- flycast-086 | Cache the last decoded block and enlarge read buffers | Compressed or sector-based storage is read in chunks.
 - flycast-087 | Avoid I/O that produces nothing new | Two common wastes: writing a file back right after reading it, and running a full dry-run serialization only to learn the output size.
-- flycast-113 | Read in large batches, not one unit per call | Each read call has fixed overhead from seeks, decompression setup and syscalls.
-- flycast-118 | Suspend auto-save during bulk updates and flush once | If every setter persists the whole file, a batch of N changes writes the file N times.
 - flycast-130 | Read contiguous data in one pass | If two logical streams turn out to be adjacent in memory, such as interlaced fields stored line after line, treat them as one buffer and read it in a single pass instead of two strided passes.
-- flycast-167 | Batch remote lookups and keep one request in flight | One HTTP request per item multiplies latency and gets you rate-limited.
 - flycast-168 | Move loops to the far side of a chatty protocol | When a client drives a server one tiny command at a time (step, check, step), the round trips dominate.
 - flycast-185 | Stream in small chunks and decrypt only right before use | Filling a large buffer in one go creates a long stall on the emulated timeline and wastes work if the consumer only reads part of it.
 - flycast-194 | Point existing file code at a memory stream | When a serialiser already writes to a `FILE*`, the fastest way to keep a snapshot in RAM is to give it a memory-backed `FILE*`.
 - flycast-196 | Load previews asynchronously and cap their resolution | Thumbnails only need to be thumbnail-sized.
 - flycast-201 | Send as soon as data arrives, and replace timer polling with posted work | Holding output until a frame delimiter appears, or draining a queue on a timer, adds latency equal to the wait.
-- haproxy-143 | Attempt the I/O first; register for readiness only after it would block | Most reads and writes on a busy non-blocking socket succeed immediately, so perform them right away and fall back to the event notifier only when the call reports it would block.
-- haproxy-144 | Keep readiness subscriptions stable: defer, coalesce and cancel interest changes | Changing what the kernel watches costs a syscall per change, so avoid toggling interest that will be needed again soon, and compute the net change late so opposite updates cancel.
-- haproxy-145 | Treat a short read as "drained" and stop before the call that would fail | When a non-blocking read returns less than requested, the kernel buffer is almost certainly empty; stop reading instead of issuing a call that will return EAGAIN.
-- haproxy-146 | Use protocol state to skip I/O attempts and wakeups that cannot succeed | Before calling into the transport, check cheap state that already predicts the outcome: still connecting, nothing sent yet, a complete message just read, nothing queued, already subscribed.
+- haproxy-143 | Attempt the I/O first; register for readiness only after it would block | Most reads and writes on a busy non-blocking socket succeed immediately, so perform them right away and fall back to the event notifier only when the call reports it would block. (also: Seastar)
+- haproxy-144 | Keep readiness subscriptions stable: defer, coalesce and cancel interest changes | Changing what the kernel watches costs a syscall per change, so avoid toggling interest that will be needed again soon, and compute the net change late so opposite updates cancel. (also: Seastar)
+- haproxy-145 | Treat a short read as "drained" and stop before the call that would fail | When a non-blocking read returns less than requested, the kernel buffer is almost certainly empty; stop reading instead of issuing a call that will return EAGAIN. (also: Tokio)
+- haproxy-146 | Use protocol state to skip I/O attempts and wakeups that cannot succeed | Before calling into the transport, check cheap state that already predicts the outcome: still connecting, nothing sent yet, a complete message just read, nothing queued, already subscribed. (also: Netty)
 - haproxy-147 | Use what the kernel already told you instead of asking again | Read the extra information carried by events and flag-combined calls (hang-up bits, byte counts, addresses from accept, atomic socket flags) and skip the follow-up calls that would only rediscover it.
 - haproxy-148 | Move more data per syscall: scatter-gather, segmentation offload, batched receives | When per-call overhead dominates, hand the kernel several buffers or many packets in one call instead of one call per piece.
 - haproxy-149 | Forward bulk payloads without copying them through intermediate buffers | For data that is only relayed, move it kernel-to-kernel (splice, tee, sendfile) or let the producer write straight into the consumer's output buffer, and keep the generic buffered path only for small or…
 - haproxy-150 | Size each read to what the next layer will consume in one step | Ask the kernel for exactly the amount the consumer can take at once, so the buffer ends empty (swappable, releasable) instead of leaving a remainder that forces extra small reads and copies.
-- haproxy-151 | Make frequent kernel-provided values cheap: read the clock once, use the cheapest entry path | Calls made on every loop or request (clock reads, hot syscalls) should go through the cheapest available path and be taken once per scheduling pass, not once per use.
+- haproxy-151 | Make frequent kernel-provided values cheap: read the clock once, use the cheapest entry path | Calls made on every loop or request (clock reads, hot syscalls) should go through the cheapest available path and be taken once per scheduling pass, not once per use. (also: curl)
 - haproxy-152 | One event-notification instance per thread | Give each worker thread its own poller set containing only the descriptors it owns, instead of one shared set that reports every event to every thread.
 - haproxy-153 | Optional busy polling to trade CPU for wake-up latency | Instead of sleeping in the poller, spin on a zero-timeout poll so the core never enters deep idle states or gets descheduled, and make that spin loop as cheap as possible.
 - haproxy-154 | Pre-grow kernel-side tables at startup | If the kernel grows a per-process structure on demand while holding a lock, force it to its final size during initialization.
@@ -142,38 +128,31 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-214 | Load a hot working set eagerly before latency-sensitive work starts | If the data fits in RAM, read it all at startup.
 - mgba-233 | Memory-map large files and use anonymous mappings for big zeroed arenas | Mapping a file avoids copying it through read().
 - netty-135 | Coalesce writes and flush once per batch | Separate "queue this output" from "push queued output to the OS", and push only at natural batch boundaries such as the end of a read burst, so many logical writes share one syscall.
-- netty-136 | Send scattered segments with one gathering write | When output lives in several buffers (header plus body, a list of queued messages, segments of a rope), hand all of them to the OS in one vectored call instead of one call each or one merge copy first.
 - netty-137 | Do as much I/O as possible per readiness event | When the OS says a socket is ready, keep reading (or accepting) until it is empty or a fairness budget runs out, and stop as soon as a short read proves it is drained.
 - netty-138 | Mirror kernel state in user space and skip syscalls that change nothing | Keep a cheap user-space copy of state the kernel also tracks (interest mask, connection state, pending submissions) and make the syscall only when the desired state actually differs.
-- netty-139 | Write until the kernel buffer is full, then wait for writability | Write directly while the socket accepts data; on a zero-byte or short write, stop, register write interest once, and let the readiness event resume, with a bounded number of attempts per turn.
 - netty-140 | Bound queued output with water marks and stop reading when behind | Track bytes queued but not yet written; above a high water mark tell producers to pause (and stop reading input that would create more output), and resume below a lower mark.
 - netty-141 | Copy small payloads, pass large ones by reference | Zero-copy paths (gathering writes, zero-copy send) have fixed per-segment costs; below a size threshold, copy into one contiguous buffer and send that, and use the zero-copy path only for large payloads.
-- netty-142 | Let the kernel move file and socket data directly | When bytes only pass through (file to socket, socket to socket), use `sendfile`/`transferTo` or `splice` so they never enter user space.
-- netty-143 | Move many datagrams per syscall | Use multi-message syscalls (`sendmmsg`/`recvmmsg`) and segmentation offload (GSO/GRO) so one kernel crossing carries many UDP packets, and shape callers so batches actually form.
-- netty-144 | Use the most specific syscall for what you already know | Pick the syscall variant that does the least work given facts you already have: `read` instead of `recvfrom` on a connected socket, `send`/`recv` instead of generic `write`/`read` on sockets.
+- netty-143 | Move many datagrams per syscall | Use multi-message syscalls (`sendmmsg`/`recvmmsg`) and segmentation offload (GSO/GRO) so one kernel crossing carries many UDP packets, and shape callers so batches actually form. (also: curl)
 - netty-145 | Program the kernel timer only when the earliest deadline moves | Remember which deadline the kernel timer is armed for and re-arm it only when a new task is due sooner; prefer a wait call that takes a precise timeout so no separate timer syscall is needed.
 - netty-146 | Predict the next read size from recent reads | Size each receive buffer from a short history of how much the previous reads returned: step up fast when reads fill the buffer, step down slowly when they do not, and use coarse size classes.
-- netty-147 | Use edge-triggered notification and drain to EAGAIN | Ask the kernel to notify on state transitions rather than while a condition holds, then consume until the operation reports it would block.
-- netty-148 | Skip attempts that will only return EAGAIN | When you already know a socket is empty, arm readiness notification directly instead of trying the operation first; when the kernel reports more data is pending, keep going without waiting.
 - netty-149 | Keep the accept path lean and spread it across threads | Accept connections in a non-blocking loop, defer per-socket setup to the thread that will own the socket, and let the kernel balance new connections across several listening sockets.
-- netty-150 | Force data to disk once per logical unit, not per write | Issue `fsync`/`force()` after the whole file or transaction has been written instead of after each chunk.
 - netty-151 | Schedule submissions around completions | In a submit/complete queue model, submit immediately when a producer is blocked on queued work, and submit again right after processing completions, looping until both queues are quiet.
-- nginx-115 | Move bytes kernel-to-kernel, and gather adjacent pieces into one call | Never read data into user space only to write it out again.
-- nginx-116 | Register interest once, and let batching and teardown absorb the rest | Each change of event interest is a syscall.
+- nginx-115 | Move bytes kernel-to-kernel, and gather adjacent pieces into one call | Never read data into user space only to write it out again. (also: Netty)
+- nginx-116 | Register interest once, and let batching and teardown absorb the rest | Each change of event interest is a syscall. (also: Netty, Tokio)
 - nginx-117 | Let readiness hints decide how many reads to make | The poller often already knows how many bytes are pending, whether the peer has half-closed, or that EOF is waiting.
 - nginx-118 | Bound the work one connection gets per loop turn, and yield without sleeping | In a cooperative event loop, a single huge transfer can starve every other client.
 - nginx-119 | Never let disk I/O block the event loop | Regular-file reads, opens of special files, and sendfile on cold pages can all block.
 - nginx-120 | Detect a capability once, fall back fast, and retry transient failures only a bounded number of times | Fast paths (new syscalls, offloads, non-blocking modes) are not always present or working.
-- nginx-121 | Use the one syscall that does exactly what you need | Many operations are written as two syscalls, or as a heavier call than needed: open where stat would do, accept then fcntl, lseek then write, read-and-buffer where a peek would do.
+- nginx-121 | Use the one syscall that does exactly what you need | Many operations are written as two syscalls, or as a heavier call than needed: open where stat would do, accept then fcntl, lseek then write, read-and-buffer where a peek would do. (also: Netty)
 - nginx-122 | Tell the kernel how you will use file data: bypass the cache or prefetch | The page cache assumes reuse and modest sequential reads.
-- nginx-123 | Batch many datagrams into one send, but only when the queue is deep enough | Build N equal-size packets in one contiguous buffer and pass them to the kernel in a single call that the kernel or NIC splits (UDP segmentation offload).
+- nginx-123 | Batch many datagrams into one send, but only when the queue is deep enough | Build N equal-size packets in one contiguous buffer and pass them to the kernel in a single call that the kernel or NIC splits (UDP segmentation offload). (also: curl)
 - nginx-124 | Stream data through instead of store-and-forward, and skip the file when there is nothing to store | Buffering a whole request or response to memory or disk before forwarding adds latency, disk writes and storage.
 - pcsx2-048 | Pick the fastest compression level for interactive snapshots | When the user is waiting for a save to finish, compression time matters far more than a few percent of file size.
 - pcsx2-077 | Large write buffers and the fastest compression level for snapshots | Many small writes cost a syscall each and can fragment the file on disk.
 - pcsx2-125 | One large read instead of a read and seek per record | Reading a small header and then seeking past each fixed-size record costs one system call per record.
 - pcsx2-126 | Asynchronous, read-ahead disc I/O | If emulation or rendering waits on a blocking read, the device latency becomes a frame hitch.
 - pcsx2-127 | Rename instead of copy for backups | If the old file is about to be replaced anyway, renaming it to the backup name is a metadata-only operation.
-- pcsx2-129 | Keep logging off hot paths in release builds | Console output means formatting, locking and often a synchronous write.
+- pcsx2-129 | Keep logging off hot paths in release builds | Console output means formatting, locking and often a synchronous write. (also: Flycast)
 - pcsx2-142 | Cache decompressed chunks with a size-bounded LRU | Random reads from a compressed archive keep paying the decompression cost again.
 - pcsx2-143 | Save decoder state at each visited span to resume sequential reads | Seeking inside a stream-compressed file means decompressing again from the nearest index point.
 - pcsx2-144 | Warm the OS cache with a throwaway async read | Once you know which disk region comes next, issue an asynchronous read for it and discard the result.
@@ -184,26 +163,21 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-236 | Track the file position yourself | Querying file length or position in a loop condition can hide syscalls (`Length()` is seek-to-end, tell, seek-back).
 - pcsx2-237 | Keep connections open and batch commands | Accepting a new socket for every request pays connection setup each time and can exhaust OS socket tables.
 - pcsx2-272 | Pipeline GPU readback and encoding across frames and threads | A synchronous readback stalls the CPU until the GPU catches up, and encoding inline stalls the render thread on top of that.
-- postgresql-175 | Combine many small I/O requests into few large ones | Each request carries a fixed cost: the syscall, the device command and the per-call library overhead.
 - postgresql-176 | Access storage in physical order, not logical order | When every item must be visited anyway, or the visit order is free, sort the work by physical location.
 - postgresql-177 | Look ahead and keep many I/Os in flight | If you know which blocks come next, request them before you need them, either as a hint to the OS or as real asynchronous reads.
 - postgresql-178 | Adapt I/O depth and resources to observed stalls | Grow lookahead distance, buffer rings and worker pools only when the consumer actually waits, and shrink them slowly when it stops waiting.
-- postgresql-179 | Move writes and fsyncs off the foreground path | Have a background worker keep reusable buffers clean and perform fsyncs requested through a queue, so request handlers never block on writes.
-- postgresql-180 | Spread and pace write-back instead of bursting | Do not let dirty data pile up and then flush it all at once.
 - postgresql-181 | Make cache replacement cheap and contention-free (clock sweep) | Approximate LRU with a per-entry saturating usage counter and a rotating clock hand, so a cache hit only bumps a counter and never touches a shared list.
 - postgresql-182 | Keep one-pass bulk operations from flushing the shared cache | Give large scans, VACUUM, COPY and diagnostic tools a small private ring of buffers.
-- postgresql-183 | Cache kernel answers and remove redundant syscalls | Treat every syscall on a hot path as expensive.
-- postgresql-184 | Grow files in bulk, scaled by demand | Extend storage many blocks at a time instead of one, scaling the amount by contention or history.
+- postgresql-183 | Cache kernel answers and remove redundant syscalls | Treat every syscall on a hot path as expensive. (also: curl, Seastar)
 - postgresql-185 | Don't write what will be discarded, and don't read what will be overwritten | Before doing I/O, ask whether its result can matter.
 - postgresql-186 | Remove staging and bounce copies from the data path | When a payload is at least as large as a staging buffer, write it directly from its source.
 - postgresql-187 | Keep the pin when the next access hits the same page | When consecutive accesses are likely to land on the same buffer, compare and keep the reference instead of releasing and re-acquiring it.
 - postgresql-188 | Invalidate by key instead of sweeping the whole pool | When only a few known entries must be dropped, probe the mapping table for each of them instead of scanning a cache of millions.
-- postgresql-189 | Stay in memory, and spill to compact sequential temp files only past a budget | Keep intermediate data in memory until it exceeds a limit, then spill to temp files laid out for sequential access.
 - postgresql-190 | Move, truncate or reuse files instead of copying or rewriting them | When a whole file or directory changes owner, rename it into place.
 - postgresql-191 | Use OS memory features that remove hidden overhead | Map large shared regions with huge pages, avoid mapping flags that cause pointless flushes, and fall back to the old method if a feature is unavailable.
 - postgresql-192 | Size chunks to match how clients write | Choose storage chunk sizes so that common client writes cover whole chunks, with powers of two and room left for updates.
 - ppsspp-044 | One system call instead of several for the same answer | Filesystem helpers often chain calls: `exists()` then `stat()`, or open, sniff and close, then reopen.
-- ppsspp-089 | Read contiguous blocks with one large request | Each read call has a fixed cost: syscall, seek, decompression setup.
+- ppsspp-089 | Read contiguous blocks with one large request | Each read call has a fixed cost: syscall, seek, decompression setup. (also: Flycast, PostgreSQL)
 - ppsspp-090 | Hide slow storage behind a block cache with read-ahead | For high-latency sources (network, optical, slow flash), keep recently used fixed-size blocks in RAM and fetch the next few blocks on a background thread after each read.
 - ppsspp-091 | Don't let anonymous shared memory write through to its file | A shared memory mapping backed by a file can make the OS flush dirty pages to disk, which wastes I/O when the file is only a vehicle for the mapping.
 - ppsspp-115 | Track which copy is current to skip redundant transfers | When data lives in two places (GPU and CPU, cache and origin), keep a flag or timestamp saying which side holds the newest version.
@@ -217,13 +191,13 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ppsspp-206 | Defer metadata queries until a caller needs the answer | Opening a file does not mean the caller will ask for its size or start sector.
 - ppsspp-207 | One bulk query instead of many point queries | Every existence check or stat is a syscall, and on Android content URIs it is an IPC call.
 - ppsspp-208 | Touch only the bytes the answer needs | Many questions about a file can be answered without reading or rewriting it.
-- redis-153 | Buffer in user space so you make one syscall per block, not per field | A producer or consumer that works in tiny pieces (fields, headers, single values) should go through a user-space buffer, with a syscall only when the buffer is full or at an explicit flush.
+- redis-153 | Buffer in user space so you make one syscall per block, not per field | A producer or consumer that works in tiny pieces (fields, headers, single values) should go through a user-space buffer, with a syscall only when the buffer is full or at an explicit flush. (also: ares, curl)
 - redis-154 | Use a readiness event loop indexed by fd, on the best poller the OS offers | Keep per-fd event slots in an array indexed by the descriptor so registration is O(1), and use a poller whose cost scales with ready descriptors (epoll, kqueue, event ports) rather than all watched descriptors.
-- redis-155 | Try the read or write first; wait for readiness only after EAGAIN | Sockets are usually writable and often readable.
-- redis-156 | Gather scattered buffers into one syscall (writev) | When output is spread over several buffers (header, static buffer, list of chunks), pass them all to one scatter-gather call instead of one write per buffer or copying them together first.
+- redis-155 | Try the read or write first; wait for readiness only after EAGAIN | Sockets are usually writable and often readable. (also: Netty)
+- redis-156 | Gather scattered buffers into one syscall (writev) | When output is spread over several buffers (header, static buffer, list of chunks), pass them all to one scatter-gather call instead of one write per buffer or copying them together first. (also: Netty, Tokio)
 - redis-157 | Read straight into the parse buffer, and adopt big payloads without copying | Read from the socket directly into the growable buffer the parser uses, not into a stack buffer that is then appended.
-- redis-158 | Move blocking filesystem calls off the latency-critical thread | Calls that may block in the kernel for a long time, such as closing the last descriptor of a deleted large file, `unlink`, `rename` over an existing file, or `fsync`, should run on a background thread.
-- redis-159 | Fold several kernel calls into one, and delete redundant ones | Prefer syscalls that set flags or submit changes atomically with another operation, and remove repeated library calls that each cost a kernel or locking round trip.
+- redis-158 | Move blocking filesystem calls off the latency-critical thread | Calls that may block in the kernel for a long time, such as closing the last descriptor of a deleted large file, `unlink`, `rename` over an existing file, or `fsync`, should run on a background thread. (also: PostgreSQL)
+- redis-159 | Fold several kernel calls into one, and delete redundant ones | Prefer syscalls that set flags or submit changes atomically with another operation, and remove repeated library calls that each cost a kernel or locking round trip. (also: curl)
 - redis-160 | Drop write-once file data from the OS page cache | Files written or read once (snapshots, log replays, backups) should not keep evicting useful cached pages.
 - redis-161 | Seed once from the OS, then generate randomness in user space | For identifiers that must be unique and unpredictable but are produced in bulk, read a seed from the kernel once and expand it with a hash or cipher in counter mode, instead of reading `/dev/urandom` per ID.
 - rocksdb-138 | Submit every independent read before waiting on any of them | When one request needs several reads that don't depend on each other, issue them all at once (vectored, async or thread-pooled) and then wait.
@@ -234,11 +208,11 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - rocksdb-143 | Never read past what the query can use: clip prefetch and skip blocks using bounds and cache state | Use the caller's limits (upper bound, prefix, declared scan ranges) and what is already cached to shrink every read to the bytes that will actually be consumed and are actually missing.
 - rocksdb-144 | Tell the kernel how you will access a file, through the mechanism that actually serves the reads | Declare random or sequential access, drop pages you won't reuse, and call OS readahead explicitly for known-sequential reads.
 - rocksdb-145 | Fetch a file's metadata region in one read, sized exactly | When opening a file means reading several metadata structures from a known region (footer, indexes, properties), read that whole region at once.
-- rocksdb-146 | Write back incrementally behind the writer instead of one giant sync at the end | Ask the OS to start writing dirty data every N bytes, a little behind the current write offset, and cap how much unsynced data can pile up.
-- rocksdb-147 | Throttle and deprioritize background I/O to protect foreground latency | Put bulk maintenance I/O (compaction, flush, deletion, backup) behind a rate limiter and a lower I/O priority, and keep it from queue-jumping user reads in device caches.
+- rocksdb-146 | Write back incrementally behind the writer instead of one giant sync at the end | Ask the OS to start writing dirty data every N bytes, a little behind the current write offset, and cap how much unsynced data can pile up. (also: PostgreSQL)
+- rocksdb-147 | Throttle and deprioritize background I/O to protect foreground latency | Put bulk maintenance I/O (compaction, flush, deletion, backup) behind a rate limiter and a lower I/O priority, and keep it from queue-jumping user reads in device caches. (also: PostgreSQL)
 - rocksdb-148 | Bypass the OS page cache when you cache yourself or read data only once | Use direct I/O (or explicit eviction) for data that the application caches on its own, and for read-once bulk scans.
 - rocksdb-149 | Read straight into the final destination, or let the storage layer lend its buffer | Skip bounce buffers whenever alignment or format already allows it.
-- rocksdb-150 | Preallocate and reuse file space so syncs don't update metadata | Reserve a file's expected size up front (and trim the unused tail at close), or recycle already-written files.
+- rocksdb-150 | Preallocate and reuse file space so syncs don't update metadata | Reserve a file's expected size up front (and trim the unused tail at close), or recycle already-written files. (also: PostgreSQL)
 - rocksdb-151 | Use metadata you already have instead of asking the filesystem again | Take sizes, existence and properties from your own manifest or from the producer that just wrote the file, list each directory once, and cache device facts.
 - rocksdb-152 | Skip writes that carry no new information | Before appending, syncing or creating anything persistent, check whether it changes state.
 - rocksdb-153 | Pay for durability syscalls only where the filesystem needs them, and keep bookkeeping off the sync path | Fsync is the most expensive call on the write path.
@@ -248,19 +222,16 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - rocksdb-157 | Prepare the next file in the background so the switch is instant | When the foreground will predictably need a new resource (next log file), create and open it ahead of time on another thread, and keep a synchronous fallback.
 - seastar-116 | Never block the event loop: do cheap calls inline, offload only what can really block | Classify every system call by whether it can block.
 - seastar-117 | Batch I/O submissions and completion accounting per loop iteration, but bound the delay | Queue I/O requests and submit them together once per event-loop pass, and likewise account completions once per pass, so one syscall and one shared-state update cover many operations.
-- seastar-118 | Try the I/O first; wait for readiness only when it fails | Assume an operation will succeed and attempt it directly.
 - seastar-119 | Cap in-flight device requests at the knee, sized by Little's law | Keep only as many requests outstanding at a device as it needs to reach peak throughput (concurrency = throughput × latency); queue the rest in the application, where they can be prioritised.
 - seastar-120 | Schedule device access by cost-weighted fair shares, not FIFO | Give each traffic class a share, charge each request a cost that reflects what it consumes on the device, and always dispatch from the class with the least normalised consumption.
 - seastar-121 | Funnel every event source into one asynchronous completion mechanism | Turn socket readiness, timers, cross-thread wakeups and disk I/O into operations on a single completion queue, so one submit and one reap service all of them.
 - seastar-122 | Read completions straight from the shared ring; skip the syscall | When the kernel publishes completions in a memory-mapped ring, consume them directly from user space with acquire loads, and advance the shared head once per batch.
-- seastar-123 | Skip syscalls whose answer you already have or whose effect is already guaranteed | Cache facts that never change for a device or file, reuse results another call already returned, and drop calls made redundant by an earlier choice.
 - seastar-124 | Keep the disk busy ahead of the consumer, and adapt the depth to how it consumes | Keep several reads (or writes) in flight per stream so the device works while the consumer computes, issue a new read each time a buffer is consumed, and grow the depth only when the consumer actually had to…
 - seastar-125 | Shape requests to the device: real alignment, saturation length, maximum size | Query the real block size and DMA alignment instead of assuming 4096, make requests at least as large as the size where throughput saturates, and split anything larger than the scheduler's per-request limit.
-- seastar-126 | Do not read what you will throw away | Request only the bytes you need, and let consumers say "skip N bytes" so the stream can seek instead of reading and discarding.
+- seastar-126 | Do not read what you will throw away | Request only the bytes you need, and let consumers say "skip N bytes" so the stream can seek instead of reading and discarding. (also: curl)
 - seastar-127 | Share one device across threads without a coordinator: lock-free token rovers | Let all threads draw from a shared capacity pool with two monotonically increasing counters (grabbed and released), refill lazily from elapsed time, and wake exactly when the head of the queue can run.
-- seastar-128 | Ask the kernel not to block, and retry elsewhere when it would | Submit asynchronous I/O with a "no wait" flag; on EAGAIN resubmit the same request through a helper thread, and push work such as fsync into the async interface when the kernel supports it.
+- seastar-128 | Ask the kernel not to block, and retry elsewhere when it would | Submit asynchronous I/O with a "no wait" flag; on EAGAIN resubmit the same request through a helper thread, and push work such as fsync into the async interface when the kernel supports it. (also: Tokio)
 - seastar-129 | Detect kernel and environment quirks and fall back to the older mechanism | Probe kernel version, filesystem and configuration at startup and enable a faster interface only where it is known to work well.
-- seastar-130 | Keep readiness registrations sticky, and remove dead ones | Leave a file descriptor registered after it fires and remember what readiness is known, so most waits need no registration syscall; but deregister descriptors that are in an error state nobody waits on.
 - seastar-131 | Know where the filesystem serialises, and serialise those operations yourself | If the filesystem takes an exclusive lock for certain operations, order them in a userspace queue so the kernel never makes the event-loop thread wait.
 - seastar-132 | Extend files ahead of appends so concurrent writes do not change the size | Grow a file once to cover many pending appends (or speculatively by doubling) and track the logical size separately, so the individual writes become non-extending and can run in parallel.
 - seastar-133 | Throttle on a smoothed dispatch/completion ratio, not an instantaneous one | Measure how much faster you dispatch than the device completes, smooth it with an exponential moving average, and raise per-request cost gradually when the ratio crosses a threshold.
@@ -272,34 +243,30 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - snes9x-139 | Specialize bulk transfers by destination | For bulk copies into a device with side effects, branch once on the destination and source kind and run a tight loop specialized for that pair.
 - snes9x-154 | Wraparound ring buffer with split block copies | For a producer/consumer FIFO, copy at most two contiguous runs per operation (up to the end of the array, then from the start) with `memcpy`, instead of moving elements one at a time with a modulo per element.
 - snes9x-155 | Debounce persistence of dirty data | Mark data dirty on write and start a countdown.
-- sqlite-154 | Pay for durability only where it is needed: fewer, weaker, better-placed syncs | Treat every flush-to-media call as the dominant cost of a commit.
+- sqlite-154 | Pay for durability only where it is needed: fewer, weaker, better-placed syncs | Treat every flush-to-media call as the dominant cost of a commit. (also: Netty)
 - sqlite-155 | Never write or log data whose content does not matter | An undo/redo log only needs entries whose old or new content will ever be read.
 - sqlite-156 | Don't read what you will overwrite, discard, or not inspect | Before fetching a block, ask whether its current content will be used.
 - sqlite-157 | Compare before writing: dirty only what really changed | When the new content may equal the old, compare first and skip the write.
 - sqlite-158 | Overwrite in place instead of delete-plus-insert or append | When a replacement has the same size and shape as the original, write it over the old bytes.
 - sqlite-159 | Create logs and coordination files only when what they protect can actually happen | Undo journals, statement savepoints and multi-file commit records exist to handle a specific failure or rollback.
-- sqlite-160 | Scale commit work to what was actually written | A commit protocol should cost nothing for participants that wrote nothing.
+- sqlite-160 | Scale commit work to what was actually written | A commit protocol should cost nothing for participants that wrote nothing. (also: PostgreSQL)
 - sqlite-161 | Invalidate and recycle log files instead of deleting and recreating them | Deleting a file is a directory-metadata operation, often followed by a directory sync.
-- sqlite-162 | Keep scratch data in memory or fast storage; spill only past a threshold | Data that never has to survive a crash should not go through durable storage.
+- sqlite-162 | Keep scratch data in memory or fast storage; spill only past a threshold | Data that never has to survive a crash should not go through durable storage. (also: PostgreSQL)
 - sqlite-163 | Ask the storage what it guarantees and drop safeguards it makes redundant | Journaling and padding exist to survive torn or non-atomic writes.
 - sqlite-164 | Make storage access sequential: allocate adjacent and ascending, bulk-load in order | Place logically adjacent data at physically adjacent, ascending offsets, and when building a structure from sorted input, fill blocks fully in order.
 - sqlite-165 | Write back from a log in target order, newest version only, resuming from a watermark | When folding a log into the main store, sort entries by destination, keep only the latest version of each block, start after what is already applied, and choose the sorting method by input size.
 - sqlite-166 | Read without intermediate copies: memory-mapping, direct reads, borrowed pointers | Let consumers read data where it already sits, in a memory-mapped file or a cache buffer, or read large values straight into the destination instead of staging them in a cache.
 - sqlite-167 | Track file state in memory instead of asking the kernel | If the program can know a file's size, existence or reusability from its own state, keep it in a variable and skip `stat`, `fstat`, `truncate`, `open` and similar calls.
 - sqlite-168 | Do each I/O in as few, aligned syscalls as possible | Assemble small fields into one buffer before writing, use positional I/O instead of seek-then-read, and buffer streams into aligned, block-sized transfers.
-- sqlite-169 | Grow files in large chunks and record the logical size separately | Extend files by preallocated chunks rather than per write, and store the logical size in a header so the physical file may be larger.
+- sqlite-169 | Grow files in large chunks and record the logical size separately | Extend files by preallocated chunks rather than per write, and store the logical size in a header so the physical file may be larger. (also: PostgreSQL)
 - sqlite-170 | Evict what is cheap to drop, and start flushing before you must | When a cache needs a victim, prefer entries that need no write or no sync.
 - sqlite-171 | Batch writes under one transaction; flush hot aggregates once per commit | Hold one transaction across a batch of operations, and keep frequently updated summary records in memory during the transaction, writing them once at commit.
 - sqlite-172 | Let the writer's native format be the fast path for on-disk integrity checks | For checksums over log data, let the writer use its native byte order and record which order it used in the header, so the common case is a plain add loop.
-- tokio-092 | Register once, edge-triggered, and keep readiness in a cheap shared word | Subscribe to all events for a resource once instead of re-arming interest per operation.
-- tokio-093 | Gather many buffers into one syscall, and forward the capability through every layer | When output is spread over several buffers, hand them all to the kernel in one scatter/gather call instead of one call per buffer or a copy into one contiguous buffer.
-- tokio-094 | Infer "drained" from a short read or write, but only where that inference holds | If a stream read returns fewer bytes than requested, or a write accepts fewer than offered, the kernel buffer is empty (or full).
 - tokio-095 | Keep a copy pipeline full, and flush when the source stalls | In a read-to-write relay, refill free buffer space whenever possible, including while the writer is blocked, so each write is as large as possible.
 - tokio-096 | Do more work per hand-off to a blocking thread pool | When an operation must be offloaded to a worker thread (file I/O, directory listing), the fixed cost of the hand-off dominates small operations.
 - tokio-097 | Submit blocking syscalls asynchronously to the kernel instead of to a thread pool | Where the OS offers a completion-based interface (io_uring), submit file operations to it and receive completions on the existing event loop, instead of parking a pool thread in each blocking syscall.
 - tokio-098 | Size the event batch to what the consumer can absorb, and reuse the array | Fetch OS events into one preallocated array that lives for the life of the loop.
 - tokio-099 | Pack readiness, an event tick, a slot generation and a shutdown flag into one atomic | Keep all per-resource I/O state that is checked on every operation in one machine word.
 - tokio-100 | Keep the registration path thin: owner-held handles, pointer tokens, no syscalls under locks | The poller should only need a cheap token for each registered resource.
-- tokio-101 | Try the non-blocking path inline before offloading | Before paying for an asynchronous hand-off, attempt the operation in a mode that fails fast instead of blocking.
 - tokio-102 | Turn asynchronous OS notifications into one coalesced event-loop wakeup | Inside an async signal (or interrupt) handler, do only async-safe, constant-time work: set a per-source pending flag and poke a self-pipe or eventfd registered with the event loop.
 - tokio-103 | Make child-process exit an event, not a scan | Avoid polling every child on every loop iteration.

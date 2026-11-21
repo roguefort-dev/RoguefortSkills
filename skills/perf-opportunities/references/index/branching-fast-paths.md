@@ -1,4 +1,4 @@
-# Lens: branching-fast-paths (159 techniques)
+# Lens: branching-fast-paths (152 techniques)
 
 Fast paths for the common case, branch removal, specialisation, predictable control flow.
 
@@ -7,10 +7,8 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ares-018 | Store comparison operands in the form the hot test needs | If a value is written rarely but compared often, apply the transform on write.
 - ares-020 | Range checks as a compile-time mask compare | For power-of-two aligned ranges, "lo ≤ x ≤ hi" reduces to `(x & mask) == lo`, with the mask computed at compile time.
 - ares-022 | Cumulative cases as a fall-through switch | When higher modes do everything lower modes do plus more, a chain of `if(mode >= X)` tests runs every comparison.
-- ares-062 | Hoist mode checks out of inner loops with template specialisation | If a mode flag is constant for a whole loop but tested on every iteration, make it a template parameter and select the instantiation once outside the loop.
 - ares-082 | A pared-down fast path for lookups that were already validated | If an earlier stage has already handled the error cases for an input, a second lookup on the same input can run without exception, debug or validity checks.
 - ares-085 | Test the steady-state case first and mark it likely | A state machine that spends almost all its time in one state should check that state first, with an early return and a `likely` hint.
-- ares-122 | Select with masks or conditional moves instead of branching | When a result is one of two values chosen by a data-dependent flag, compute both and pick one with a conditional move or a mask (`-flag & (a^b) ^ b`).
 - dolphin-034 | Move per-item branches to setup time | A branch on a value that is constant for a whole batch, such as a component count or a format flag, still runs once per item.
 - dolphin-043 | Check rare conditions once per slice, not every step | Testing for an external interrupt or pause request before every simulated instruction puts a load and branch in the innermost loop, though the condition changes rarely.
 - dolphin-045 | Stop a scan at a sentinel instead of checking every slot | Scanning a fixed-size array and testing each slot for "used" visits every slot even when only one or two are filled.
@@ -39,7 +37,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-069 | Merge duplicated branches into one data-dependent expression | If two branches run the same arithmetic with different constants, select the constant (which compiles to a cmov) and run the arithmetic once.
 - duckstation-094 | Fold branches whose outcome is decided by a constant | A conditional branch on a value that is fixed (for example, a hardwired zero register) always goes the same way.
 - duckstation-101 | Decode addresses with masks instead of a switch | When address regions are aligned powers of two, a lookup can be done with AND, compare and shift.
-- duckstation-148 | Tell the compiler which branches are cold or impossible | Marking error and edge paths `[[unlikely]]` makes the compiler lay them out of line, so the hot path falls straight through and stays dense in the instruction cache.
+- duckstation-148 | Tell the compiler which branches are cold or impossible | Marking error and edge paths `[[unlikely]]` makes the compiler lay them out of line, so the hot path falls straight through and stays dense in the instruction cache. (also: Seastar)
 - duckstation-195 | Skip the read in read-modify-write when nothing will be kept | If the new value fully overwrites the destination (no blending, no masking, no partial lanes), the load of the old value is wasted bandwidth.
 - duckstation-236 | Mark error paths as unlikely | Branch-probability hints such as `[[unlikely]]` or `__builtin_expect` tell the compiler to lay the common path out as straight fall-through code and move the error handling out of line.
 - duckstation-277 | Make a dense switch provably exhaustive so it drops its bounds check | A switch over a small integer usually compiles to a jump table guarded by a range check plus a branch to `default`.
@@ -51,13 +49,8 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - flycast-013 | Keep expensive debug checks behind a runtime flag marked unlikely | Calls like `glGetError` can force a driver to synchronize, so checking after every call is very slow.
 - flycast-018 | Duplicate dispatch code so each indirect call site has one target | The branch target buffer predicts an indirect call by its address.
 - flycast-034 | Compare and range-check floats as integers | IEEE-754 floats that are non-negative sort the same way as their bit patterns read as signed integers.
-- flycast-069 | Unswitch loops on loop-invariant modes | A `switch` on a value that is constant for the whole loop, placed inside the loop body, costs a dispatch per iteration and blocks vectorization.
 - flycast-109 | Replace if-chains with a switch on dense keys | A long chain of equality tests runs in linear time.
-- flycast-110 | Swap function pointers when the mode changes | If every call checks a rarely changing mode flag, install mode-specific implementations through function pointers and re-point them when the mode toggles.
-- flycast-163 | Collapse a hot compound predicate into one precomputed flag | A check called on every memory access, such as `config && register.bit`, means two loads and a branch each time.
 - flycast-178 | Stop the per-tick pipeline as soon as the unit goes idle | If an early stage of a per-sample pipeline can switch the unit off, skip the remaining stages for that tick.
-- flycast-188 | Pick the mode-dependent handler when the mode changes, not on each call | A check that depends on a rarely changing mode, repeated on every hot operation, is wasted work.
-- flycast-220 | Select specialised per-voice step functions when registers are written | Each voice's format, loop mode and envelope state change rarely but are consulted 44,100 times a second.
 - melonds-006 | Keep an active-set bitmask to skip idle units | If a hot loop updates N units and most are usually disabled, maintain a bitmask of the active ones whenever their configuration changes.
 - melonds-017 | Split a loop by region so classification happens once per region | If a loop body begins with "which zone is this element in?" and the zones are contiguous (head, middle, tail), write one loop per zone with the zone's logic built in.
 - melonds-018 | Clamp loop bounds up front instead of bounds-checking each iteration | Clip the iteration range to the valid interval once, before the loop.
@@ -72,10 +65,10 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-151 | Use a type tag and static_cast instead of dynamic_cast | `dynamic_cast` walks RTTI structures at runtime and can do string compares across shared libraries.
 - melonds-164 | Instruction dispatch through a table indexed by extracted opcode bits | Decoding an instruction with nested ifs and switches costs several dependent branches.
 - mesen2-004 | Stop processing once the output is fully covered | In layered compositing, where front layers hide back layers, count how many output slots have been filled.
-- mesen2-010 | Unswitch loops: move invariant branches outside | If a condition is fixed for the whole loop, write two loops and test the condition once.
+- mesen2-010 | Unswitch loops: move invariant branches outside | If a condition is fixed for the whole loop, write two loops and test the condition once. (also: Flycast)
 - mesen2-018 | Shape hot-loop control flow around the common case | Put the frequent case in the first branch, move rare code into a separate non-inlined function, and hoist calls that every branch makes.
 - mesen2-022 | Guard expensive hooks with an inline flag check | Split an instrumentation hook into a tiny inline wrapper that tests one boolean, and an out-of-line body that does the real work.
-- mesen2-045 | Rebind a function pointer when configuration changes | When a per-tick function branches on configuration that rarely changes (hardware variant, speed mode, attached peripherals), compile one specialized version per combination.
+- mesen2-045 | Rebind a function pointer when configuration changes | When a per-tick function branches on configuration that rarely changes (hardware variant, speed mode, attached peripherals), compile one specialized version per combination. (also: Flycast)
 - mesen2-048 | Occupancy map to skip empty positions | If every output position has to search a small list of objects for one that covers it, mark the covered positions in a byte array once per row.
 - mesen2-054 | Answer "anything pending?" with a single mask test | If a status check loops over sources or calls a general query with a wildcard argument, store the state as bitmasks and test `active & ~disabled` directly.
 - mesen2-056 | Per-category "any?" flags before scanning a list | If a hook runs on every operation but only does something when a matching rule exists, keep a precomputed boolean for each operation category, or one summary flag over all fields of a request struct.
@@ -101,7 +94,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-023 | Unroll small fill loops that memset can't express | When the fill value isn't a repeated byte, partially unroll the store loop so loop overhead drops by the unroll factor and stores pipeline better.
 - mgba-039 | Handlers should catch up on everything that is due | When an event handler runs late, loop until no more work is due, rather than handling one item and bouncing back through the global dispatcher.
 - mgba-040 | Fold all exit reasons into the hot loop's one bound | Keep a single comparison in the hot loop.
-- mgba-042 | Hoist loop-invariant branches by specialising the loop | If a condition is constant for the whole loop, test it once and run a specialised copy of the loop body (via macros or templates).
+- mgba-042 | Hoist loop-invariant branches by specialising the loop | If a condition is constant for the whole loop, test it once and run a specialised copy of the loop body (via macros or templates). (also: ares)
 - mgba-044 | Power-of-two range checks as masks; replicate bits by doubling | For a power-of-two `N`, `(x & ~(N-1)) == 0` checks `0 <= x < N` in one operation, negatives included.
 - mgba-048 | Cheapest decisive test first; clamp rare limits after the loop | Order short-circuit conditions so the cheap, usually decisive test runs first.
 - mgba-074 | Unroll to the natural group size; handle the ragged edges separately | When data comes in fixed-size groups, split the loop into an unaligned prefix, an aligned unrolled body and a suffix.

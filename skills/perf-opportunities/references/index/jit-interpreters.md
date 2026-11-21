@@ -1,13 +1,10 @@
-# Lens: jit-interpreters (331 techniques)
+# Lens: jit-interpreters (290 techniques)
 
 Interpreter dispatch, bytecode design, JIT/recompiler code generation, block caches.
 
 Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
 
 - ares-037 | Pre-decode a run of instructions into a chain of direct calls | An interpreter pays to fetch, decode and dispatch through a switch on every step.
-- ares-038 | Grow a JIT incrementally: inline the easy operations, call out for the rest | You don't need a complete code generator before getting a speedup.
-- ares-039 | Spread fixed per-dispatch cost over a minimum batch of work | If each trip through a dispatcher carries fixed overhead (lookup, synchronisation, bookkeeping), very short units of work let that overhead dominate.
-- ares-047 | Invalidate the smallest unit that actually changed | When cached derived data must be discarded because its source changed, throwing away a whole page or pool throws away a lot of still-valid work that then has to be regenerated.
 - ares-048 | Key a compilation cache by content hash so swapped-in code is reused | If a small code region is repeatedly overwritten with a handful of recurring programs, a cache keyed by address keeps throwing away compiled code.
 - ares-049 | Make cache entries smaller so partial overwrites don't evict everything | One cache entry per large region means that any change to part of the region evicts all of it, and two programs sharing the region never coexist.
 - ares-051 | Two-level lookup: a direct-mapped fast path backed by a content-hashed store, with dirty bits | Put a direct-addressed array in front of the slower hashed store.
@@ -15,31 +12,14 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ares-054 | Share one exit sequence per generated function | If every early-exit point in generated code repeats the full epilogue (restore registers, fix the stack, return), code size grows with the number of exits and pressure on the instruction cache rises.
 - ares-055 | Generate code directly for the host's calling convention | Writing generated code for one ABI and adding register shuffles to adapt it to another costs extra moves on every call.
 - ares-056 | Address state relative to a base register, biased so offsets fit in one byte | Encoding absolute 64-bit addresses in each instruction bloats code and makes it position-dependent.
-- ares-057 | Recognise busy-wait idioms and fast-forward them | Guest code often spins on a branch-to-self while waiting for an interrupt.
-- ares-058 | Map guest operations to single host instructions where they exist | Synthesising a rotate from two shifts and an OR, or rebuilding a carry flag with extra moves, costs several instructions where the host has one.
-- ares-076 | Skip runtime checks that code-generation context already settles | A code generator knows facts about each instruction it emits, such as what the previous instruction was.
-- ares-078 | Deduplicate compiled artifacts by content hash | When derived artifacts are expensive to build and their inputs often come back unchanged after an invalidation, key a secondary cache on a fast hash of the input bytes.
-- ares-084 | Detect busy-wait loops and fast-forward them | A loop that only spins waiting for an external event does no useful work per iteration.
 - ares-091 | Move per-step invariant maintenance to the writers | Re-establishing an invariant after every step, such as "this slot is always zero", costs something on every step.
 - ares-092 | Replace per-instruction helper calls with inline generated code | A call out of generated code into a general-purpose helper costs a call, an argument setup and a switch, all repeated per instruction.
 - ares-101 | Generate instrumentation only while it is switched on | Diagnostic hooks in generated code cost something on every execution.
-- ares-113 | Choose the fast path while generating code, not while running it | If a code generator already knows a property of an instruction, such as whether it sits in a branch delay slot, it should emit only the matching variant.
-- ares-115 | Inline the common case and move rare cases out of line | Emit the frequent, simple case (here an aligned memory access) inline as a few host instructions, followed by a single conditional jump to out-of-line code for the rare case.
-- ares-116 | Generate no code for results that are thrown away | On architectures with a hardwired zero register, an instruction that writes to it has no effect.
-- ares-117 | Fold operations whose inputs are known when the code is compiled | If an operand is the zero register, or both operands are the same register, a compare or ALU op has a known outcome.
-- ares-118 | Propagate constants through a block to prove addresses and alignment | Track which registers hold values that are known at compile time as instructions are emitted.
-- ares-119 | Keep a hot base pointer in a callee-saved register | A pointer that almost every memory op needs should stay in a callee-saved register for the whole block.
-- ares-120 | Emit trivial operations inline instead of calling a helper | A call to a helper costs argument setup, saving and restoring registers, and a call/return pair.
-- ares-121 | Use addresses known at compile time as immediates | Inside a straight-line block, each instruction's address and the address after it are known when the code is generated.
-- ares-123 | Emit per-instruction checks only after instructions that can trip them | An exit check after every instruction ("did we halt?", "must the block end?") is wasted on instructions that cannot change that condition.
-- ares-125 | Key compiled code on the mode bits it was specialized for | Fold the CPU modes that affect code generation (privilege level, address width, FPU trap enables and so on) into a compact state key, and store it with each compiled block.
-- ares-126 | Track invalidation at fine granularity to avoid throwing away hot code | Coarse invalidation discards compiled code whenever any nearby data is written, even data that holds no code.
-- ares-127 | Grow compiled regions across conditional branches | Ending a block at every branch sends execution back to the dispatcher on each one.
 - ares-129 | Emulate cache lookups inline in generated code | An emulated cache hit is the common case, so test it inline with a computed line address and one compare, and call into the emulator only on a miss.
 - ares-130 | Speculate on conventions for stack and global pointers | Code compiled for a given platform almost always keeps its stack and global pointers aligned and inside RAM.
 - ares-133 | Make debugging hooks cost nothing where no breakpoint is set | Having a debugger attached should not slow down code that has no breakpoint.
 - ares-158 | Look up compiled code by content hash, with a bitmap of dirty regions | For a small code memory that is overwritten constantly, key compiled blocks by a hash of their bytes plus context.
-- dolphin-001 | Patch direct jumps between compiled blocks | When a translated code block ends, returning to a central dispatcher to look up the next block costs a hash or table lookup plus an indirect jump on every block exit.
+- dolphin-001 | Patch direct jumps between compiled blocks | When a translated code block ends, returning to a central dispatcher to look up the next block costs a hash or table lookup plus an indirect jump on every block exit. (also: Flycast)
 - dolphin-003 | Track dirty registers and skip unchanged write-backs | A register cache that mirrors memory only needs to store a value back if it changed since it was loaded.
 - dolphin-004 | Fold constants at code-generation time | When a code generator knows an operand's value at compile time, it can compute the result right away and record it as a constant.
 - dolphin-005 | Fuse a compare with the branch that consumes it | Materializing a comparison result into a flags variable, then testing it again in the next instruction, costs several stores, jumps and a reload.
@@ -48,7 +28,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-009 | Let the MMU fault on the rare case, then patch that site | Instead of testing every memory access for "is this special I/O?", reserve a large virtual region, map ordinary memory into it, and emit a plain load.
 - dolphin-010 | Natively compile whatever tops the profile | A fast path with fallbacks is only as fast as its most common fallback.
 - dolphin-011 | Peephole away moves and saves the code doesn't need | Generic emitter helpers often produce a copy into a scratch register followed by a copy out, a zero-extend between registers of the same width, or a push/pop of a register that holds nothing live.
-- dolphin-012 | Make the code cache big enough to hold the working set | When a translation cache fills, it is usually flushed wholesale and everything is recompiled.
+- dolphin-012 | Make the code cache big enough to hold the working set | When a translation cache fills, it is usually flushed wholesale and everything is recompiled. (also: Flycast)
 - dolphin-033 | Generate a straight-line routine per data format | A generic decoder walks an array of function pointers for every record and re-checks the format each time.
 - dolphin-066 | Evict the register whose value is needed furthest in the future | Round-robin register allocation spills values that are about to be used again.
 - dolphin-067 | Algebraic simplification and constant folding in the IR builder | Apply rewrite rules when IR nodes are created: fold constants, merge chained immediates, and replace expensive operations with cheaper equivalent ones.
@@ -56,7 +36,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-069 | Inline short shared helpers into generated code | Calling a tiny shared routine from generated code costs argument moves into fixed registers, a call/return pair, and pressure on the return predictor.
 - dolphin-070 | Write back only dirty cached values | A write-back cache, whether of registers, pages or rows, should track a dirty bit and skip the store when a value was only read.
 - dolphin-071 | Snapshot and restore cached state around a side exit | A rarely taken exit in the middle of a block must leave memory consistent, but flushing permanently forces the hot fall-through path to reload everything.
-- dolphin-073 | Specialize generated code to the configuration at generation time | If a hot routine is generated at runtime, settings that are fixed for the session can be checked once while generating it.
+- dolphin-073 | Specialize generated code to the configuration at generation time | If a hot routine is generated at runtime, settings that are fixed for the session can be checked once while generating it. (also: Flycast)
 - dolphin-074 | Link compiled blocks directly and use stubs for missing ones | Returning to a central dispatcher after every block costs a lookup and an indirect jump.
 - dolphin-075 | Move per-execution decisions from the dispatcher to compile time | If a property of a block can be known when it is compiled, such as "this block is an idle loop", bake its effect into the block's code.
 - dolphin-076 | Grow translation units past branches and calls | Short compiled regions hand control back to the dispatcher often and give the optimizer little to work with.
@@ -64,15 +44,15 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-112 | Don't load a register you are about to overwrite | Before an instruction writes a destination, a register allocator only needs to load that destination's old value if the instruction also reads it.
 - dolphin-113 | Strength-reduce arithmetic on known constants and use addressing modes | When an operand is a compile-time constant, multiply by 0, -1 or a power of two becomes XOR, NEG or SHL, and constant unsigned division becomes multiply-and-shift.
 - dolphin-114 | Use wider operations: to absorb edge cases, and to merge narrow stores | Guest semantics often differ from the host at the edges.
-- dolphin-115 | Invalidate the smallest region, and only for writes that can matter | Over-broad cache invalidation turns into recompilation storms.
-- dolphin-117 | Emit checks only where analysis shows they're needed | A per-instruction or per-block runtime check (interrupts, exceptions, breakpoints) costs on every pass.
+- dolphin-115 | Invalidate the smallest region, and only for writes that can matter | Over-broad cache invalidation turns into recompilation storms. (also: ares)
+- dolphin-117 | Emit checks only where analysis shows they're needed | A per-instruction or per-block runtime check (interrupts, exceptions, breakpoints) costs on every pass. (also: ares)
 - dolphin-119 | Jump between generated blocks instead of calling them | If a dispatcher CALLs each compiled block, every block has to save and restore callee-saved registers and return.
 - dolphin-120 | Track what each unlinked jump waits for, and relink precisely | Linking compiled blocks directly saves a trip through the dispatcher.
 - dolphin-121 | Resolve rarely-changing conditions when you generate code | If a condition almost never changes, decide it once when the code is generated or the program is built, rather than testing it every time the code runs.
 - dolphin-142 | Let the hardware fault handler take the slow path | If an access is almost always to plain memory but occasionally hits something special, emit only the fast direct access.
 - dolphin-144 | Move cold paths out of line, away from hot code | Rarely taken branches such as exception exits and slow memory calls take up instruction-cache lines and decoder bandwidth even when they never run.
 - dolphin-146 | Chain compiled blocks directly, and check the cheap flag first | When a compiled block exits to a known address that is already compiled, patch in a direct jump.
-- dolphin-147 | Specialize dispatch at code-generation time when the target is constant | If an address or key is known when code is generated, resolve the handler then.
+- dolphin-147 | Specialize dispatch at code-generation time when the target is constant | If an address or key is known when code is generated, resolve the handler then. (also: Flycast)
 - dolphin-152 | Pick the shortest encoding and the forms the decoder fuses | Code density matters for the I-cache and the decoders.
 - dolphin-153 | Fold address arithmetic into the addressing mode | The x86 `[base + index*scale + disp]` form, and `LEA`, compute an add-and-scale in one instruction without touching flags.
 - dolphin-157 | Speculate on observed state, guard it, recompile on failure | If a configuration value is almost always the same at runtime, generate code specialized for that value.
@@ -85,7 +65,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-197 | Track a value's current representation and convert only on demand | If a value can exist in several encodings (single or double, low lane only or both lanes), record which one each register currently holds and convert lazily when a consumer needs a different one.
 - dolphin-198 | Keep hot state in registers instead of memory | Every load from or store to a state struct adds latency and an extra instruction.
 - dolphin-199 | Inline helpers once they are only a few instructions | A call costs a push of the return address, a jump, a return and register saves.
-- dolphin-207 | Detect spin loops and jump time forward | A loop that only waits for an external event burns host CPU while simulating nothing.
+- dolphin-207 | Detect spin loops and jump time forward | A loop that only waits for an external event burns host CPU while simulating nothing. (also: ares)
 - dolphin-208 | Follow unconditional branches to build longer traces | Ending a compiled unit at every unconditional branch means a dispatch per branch and no optimization across it.
 - dolphin-233 | Allocate related code regions contiguously to keep jumps short | If generated code, helper routines and trampolines are allocated separately, they can land too far apart for short relative branches.
 - dolphin-246 | Choose the shortest instruction encoding for the same operation | Smaller machine code means fewer instruction-cache misses and fewer bytes for the decoder.
@@ -94,12 +74,12 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-256 | Track where a value currently lives, including when it is a known constant | If the generator records only "in memory" or "in a register", it has to reload or rematerialize values it already knows.
 - dolphin-257 | Don't load a value you are about to overwrite | If a register-cache bind can't tell reads from writes, it loads or materializes the old value even when the very next instruction overwrites it.
 - dolphin-258 | Use the target's fused operand forms and break false dependencies | Many ISAs can extend, shift or permute an operand as part of another instruction.
-- dolphin-262 | Call hot helpers through a custom, minimal calling convention | The standard ABI forces the caller to save every caller-saved register it has in use.
+- dolphin-262 | Call hot helpers through a custom, minimal calling convention | The standard ABI forces the caller to save every caller-saved register it has in use. (also: Flycast)
 - dolphin-263 | Recognize a whole loop idiom and run it in bulk | A tight loop that applies the same operation to consecutive addresses pays its per-iteration cost (dispatch, checks, counters) N times.
 - dolphin-264 | Limit spill and flush sets to registers the instruction actually touches | "Flush everything not needed later" makes the generator scan, and sometimes emit stores for, registers this instruction never used.
 - dolphin-271 | Specialize code on a guessed constant, guarded by a cheap runtime check | If a value is almost always the same but can't be proven constant, generate code that assumes it is, and put one compare at entry that falls back to generic code on a mismatch.
 - dolphin-290 | Put only genuinely rare paths in the cold section | Splitting code into hot and cold areas keeps the instruction cache dense, but only if the cold side is really cold.
-- dolphin-295 | Specialise generated code on a compact "mode word" that is part of the cache key | When generated code depends on a few slow-changing runtime modes, pack them into one feature word.
+- dolphin-295 | Specialise generated code on a compact "mode word" that is part of the cache key | When generated code depends on a few slow-changing runtime modes, pack them into one feature word. (also: ares)
 - dolphin-319 | Paired loads and early-issued loads in a hot dispatcher | In a tight lookup sequence, fetch adjacent fields with one paired load, and issue every load before the compare that first needs it, so memory latency overlaps with other work.
 - dolphin-321 | Give a frequently used rare-variant instruction the native path | If an "exotic" opcode behaves identically to a common one under your current assumptions, route it to the fast implementation.
 - dolphin-322 | Optimise cold code for size, hot code for latency | For code that rarely runs, instruction fetch and i-cache misses outweigh pipeline latency.
@@ -115,18 +95,18 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-022 | Emit three-operand forms to avoid extra moves | On ISAs that have `op dst, src1, src2`, copying the left operand into the destination first wastes an instruction.
 - duckstation-023 | Inline the common case and call out only for special cases | Calling a generic helper for every access costs argument setup, a call and spills.
 - duckstation-024 | Pick the cheaper equivalent instruction | Several instruction sequences often compute the same thing with different latency, throughput, size or macro-fusion behaviour.
-- duckstation-046 | Dispatch through a table indexed by address instead of a hash map | When the keys are dense integers in a known range, such as program counters, a flat array of function pointers indexed by `key >> shift` replaces a hash lookup with one load and an indirect call.
-- duckstation-047 | Write the hot dispatch loop in generated code | A C++ loop that calls into JIT code pays for a call frame, callee-saved register spills and an indirect return on every block.
+- duckstation-046 | Dispatch through a table indexed by address instead of a hash map | When the keys are dense integers in a known range, such as program counters, a flat array of function pointers indexed by `key >> shift` replaces a hash lookup with one load and an indirect call. (also: Flycast)
+- duckstation-047 | Write the hot dispatch loop in generated code | A C++ loop that calls into JIT code pays for a call frame, callee-saved register spills and an indirect return on every block. (also: Flycast)
 - duckstation-051 | Emit the optimistic path, then patch it after a fault | Generate only the fast inline sequence and record where it is.
-- duckstation-052 | Propagate constants at compile time to pick the access path | If a code generator tracks which register values it can know at compile time, even speculatively, it can resolve addresses early.
-- duckstation-053 | Peephole-specialize trivially decidable instructions | Look for operations whose outcome can be decided at compile time, and for cheaper encodings of the same operation.
+- duckstation-052 | Propagate constants at compile time to pick the access path | If a code generator tracks which register values it can know at compile time, even speculatively, it can resolve addresses early. (also: ares)
+- duckstation-053 | Peephole-specialize trivially decidable instructions | Look for operations whose outcome can be decided at compile time, and for cheaper encodings of the same operation. (also: ares)
 - duckstation-054 | Place generated code near its callees so short calls reach | If the code buffer lives inside the program image, for example as a static array, every runtime helper is within ±2GB (x64) or ±128MB (AArch64).
 - duckstation-055 | Return error codes from slow-path helpers so the fast path stores no context | If a helper needs caller context only when it fails, such as which instruction faulted, have it return a status and let the caller supply the context on the failure branch.
 - duckstation-057 | Spend registers carefully around calls | Values cached in caller-saved registers must be saved before any call.
-- duckstation-058 | Compile the remaining fallback operations natively | In a mixed JIT/interpreter, every operation that falls back to the interpreter flushes all cached registers and makes a generic call.
+- duckstation-058 | Compile the remaining fallback operations natively | In a mixed JIT/interpreter, every operation that falls back to the interpreter flushes all cached registers and makes a generic call. (also: Flycast)
 - duckstation-090 | Patch direct jumps between generated code blocks | A JIT that returns to a central dispatcher after every block pays for a hash or table lookup and an indirect call each time.
 - duckstation-091 | Stop optimizing code that keeps changing | Compilation only pays off if the compiled result gets reused.
-- duckstation-092 | Bake values known at compile time into the generated code | If a code generator already knows a value, such as an instruction's address or a field offset, it should emit that value as an immediate.
+- duckstation-092 | Bake values known at compile time into the generated code | If a code generator already knows a value, such as an instruction's address or a field offset, it should emit that value as an immediate. (also: ares)
 - duckstation-093 | Emit nothing for no-op inputs | Filler instructions and no-op operations still go through the general translation path unless they are recognized.
 - duckstation-095 | Settle deferred bookkeeping only on the slow path | When a counter is batched and normally committed at the end of a block, only the rare path that actually reads it (a fallback or a fault handler) needs it to be exact.
 - duckstation-096 | Move cold paths out of line, and compile them only when enabled | Keep the code that usually runs straight-line and contiguous, and branch out to a separate "far" region for rare cases.
@@ -135,7 +115,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-130 | Dispatch through a two-level table of code pointers and link blocks directly | If every jump between compiled fragments goes through a hash-map lookup, the dispatcher becomes the bottleneck.
 - duckstation-131 | Adaptive invalidation: hardware write traps for stable code, manual checks for churning code | Write-protecting the pages that hold cached code makes self-modification detection free until a write actually happens.
 - duckstation-135 | Liveness-driven register allocation with constant propagation in a block compiler | A simple JIT loads guest registers from memory and stores them back on every instruction.
-- duckstation-136 | Prefer callee-saved registers for values that cross calls | If a long-lived value sits in a caller-saved register, every out-of-line helper call forces a spill and a reload around it.
+- duckstation-136 | Prefer callee-saved registers for values that cross calls | If a long-lived value sits in a caller-saved register, every out-of-line helper call forces a spill and a reload around it. (also: ares)
 - duckstation-137 | Specialize compiled code on values observed at compile time | When you compile at run time, you can see the program's actual state.
 - duckstation-138 | Reorder instructions to remove pipeline-hazard bookkeeping | Architectural quirks such as branch delay slots force a naive translator to emit extra state handling.
 - duckstation-139 | Place generated code near the code it calls | On x86-64 and ARM64, direct branches and PC-relative addressing reach only ±2–4 GB.
@@ -148,32 +128,21 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-217 | Base JIT space reservations on real code expansion | A JIT flushes its whole code cache when free space drops below the worst case for the next block.
 - duckstation-275 | Port the JIT backend from a similar ISA | A JIT is only fast on architectures that have a backend.
 - duckstation-314 | Pick instruction forms that encode the operation directly | In a code generator, many patterns have a shorter encoding.
-- duckstation-316 | Specialize generated validation code on the data's size | When generated code compares a region against a known snapshot, small regions can compare against immediates baked into the code, which needs no second pointer or memory read.
+- duckstation-316 | Specialize generated validation code on the data's size | When generated code compares a region against a known snapshot, small regions can compare against immediates baked into the code, which needs no second pointer or memory read. (also: Flycast)
 - duckstation-333 | Map guest memory into a reserved host address range so loads become one host instruction | Reserve a large virtual region and map the guest's RAM into it, mirrors included, as views of one shared-memory object.
-- duckstation-334 | Speculate the fast path and backpatch it to a slow call on the first fault | Emit every memory access as the direct fast-path instruction, and record its host PC and register metadata in a side table.
+- duckstation-334 | Speculate the fast path and backpatch it to a slow call on the first fault | Emit every memory access as the direct fast-path instruction, and record its host PC and register metadata in a side table. (also: Flycast)
 - duckstation-335 | Detect self-modifying code with page protection, and fall back to checksums for hot pages | Write-protect host pages that contain translated code.
 - duckstation-336 | Chain translated blocks with direct jumps, and keep a reverse map to unpatch them | Ending each block with a return to the dispatcher costs a lookup and an indirect jump.
 - duckstation-337 | Allocate registers in a single pass, with constant propagation and LRU eviction | A baseline JIT can stay fast to compile and still produce decent code.
-- flycast-001 | Translate hot operations to native code instead of calling back into the interpreter | A JIT that hits an operation it can't emit usually falls back to a call into a generic handler.
 - flycast-003 | Recognize multi-instruction idioms and replace them with one operation | Code often spells out a high-level operation as a long fixed sequence of primitive steps.
 - flycast-004 | Run cheap peephole passes over the IR before code generation | Short passes over a block's intermediate representation can drop writes that are overwritten before anyone reads them, and can link constants across operations.
 - flycast-006 | Put speculative fast paths behind an explicit opt-in | Some shortcuts are safe for nearly every workload but break a few.
 - flycast-017 | Pre-bind operands into closure arrays when you can't generate code | On platforms that forbid executable memory, you can still translate each block once into an array of small objects.
 - flycast-021 | Cap unit size so fixed reservations and tables stay valid | If compiled blocks have a hard maximum size, the code emitter can reserve a fixed amount of space up front.
-- flycast-025 | Bring up a new JIT with per-op interpreter fallback, then widen native coverage | Start a new backend by emitting calls to the interpreter for every instruction, plus a native dispatch loop.
-- flycast-046 | Keep hot variables in machine registers across a whole code region | If generated code loads each variable from memory before every operation and stores it right after, most of its time goes into load/store traffic.
-- flycast-047 | Address a state struct through one pinned base register | Loading a full 64-bit absolute address before every access to a global costs one or more extra instructions each time.
+- flycast-025 | Bring up a new JIT with per-op interpreter fallback, then widen native coverage | Start a new backend by emitting calls to the interpreter for every instruction, plus a native dispatch loop. (also: ares)
 - flycast-048 | Remember which register already holds a value | A code generator without a full allocator can still track which value each scratch register currently holds.
-- flycast-049 | Emit inline code for common operations instead of calling helpers | A call to a generic helper for each operation costs argument marshalling, a call and return, and a forced spill of live registers.
-- flycast-052 | Optimistic direct memory access with a fault-driven fallback | Emit the fast path, a raw load from `base + address`, with no range check.
-- flycast-053 | Resolve constant addresses at compile time | If an access's address is known when code is generated, decide then which memory region it hits.
-- flycast-054 | Chain compiled blocks with direct jumps | Going back to a dispatcher after every compiled block costs a lookup and an indirect branch.
-- flycast-055 | Index a direct-mapped code table with one bitfield extract | Map an address to its compiled handler with a flat array indexed by address bits, not a hash table.
-- flycast-056 | Run the dispatch loop in assembly with its state pinned in registers | A dispatcher written in C reloads its globals, such as the context pointer, the cycle budget and the running flag, on every iteration, because the compiler can't prove that generated code leaves them alone.
 - flycast-057 | Check the time budget inside each block, and branch out only when it runs out | Instead of returning to a scheduler after every unit of work, have each unit subtract its cost from a counter held in a register and branch out only when the counter goes negative.
-- flycast-058 | Size the code cache to avoid flush thrashing | When a fixed-size translation cache fills, it is often flushed wholesale, and every hot block has to be recompiled.
 - flycast-059 | Don't discard derived caches on unrelated invalidation signals | A cache built from source data only needs invalidating when that data changes.
-- flycast-060 | Specialize content-change checks by size and compare wide words | Verifying that a small buffer is unchanged with a generic `memcmp` costs a call and a loop setup.
 - flycast-061 | Use immediate operands and set up a stack frame only when needed | Moving a constant into a scratch register before using it adds an instruction and a dependency; most ISAs take small immediates directly.
 - flycast-062 | Materialize flags with setcc instead of mov/mov/cmov | To turn a condition into 0 or 1, `setcc al; movzx reg, al` is shorter and needs no constant register, while `mov reg,0; mov tmp,1; cmovcc reg,tmp` needs three instructions and a temporary.
 - flycast-063 | Compile small fixed programs into straight-line native code | When a short program is run thousands of times per second and rarely changes, re-decoding its instruction fields on every pass wastes most of the time.
@@ -181,35 +150,25 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - flycast-095 | Give volatile entries their own cache area so they don't flush the stable ones | If a few entries are invalidated over and over, mixing them with long-lived entries forces frequent full flushes.
 - flycast-097 | Offer a cheaper validation level | Fully verifying a cached item can cost nearly as much as rebuilding it.
 - flycast-100 | Jump straight past trampoline blocks | If a branch target does nothing but jump elsewhere (an unconditional branch with a no-op delay slot), point the link at the final destination.
-- flycast-101 | Fast memory path with fault-and-patch fallback | Emit the common memory access as a direct load from a host mapping of the guest address space.
-- flycast-102 | Generate the dispatcher at runtime, specialized to the current mode | A hand-written assembly main loop has to handle every configuration with runtime checks.
-- flycast-103 | Save only the registers a callee actually clobbers | Around a call, generated code only has to preserve live registers that the callee may overwrite.
-- flycast-104 | Resolve dispatch at compile time when the address is constant | If an operand is known when code is generated, do the lookup then.
 - flycast-105 | Put the hot special case first in a generated helper | When one address range needs very different handling and is very hot, test for it at the top of the generated stub and handle it inline.
 - flycast-136 | JIT-compile small fixed programs that run continuously | A short program that stays the same for long stretches but runs at a very high rate (a DSP microprogram per audio sample, a co-processor loop) is worth compiling to native code.
 - flycast-158 | Compile a fixed microprogram into straight-line native code | When a small program runs unchanged millions of times (for example 128 steps for every audio sample), decode it once and emit host code with every field already resolved and every unused operation left out.
 - flycast-159 | Outline rare checks from generated code and test before updating | Checks that every compiled block repeats inline make the code cache bigger, and a bigger cache means more i-cache misses.
 - flycast-160 | Reserve patch space at link sites | Generated code that may later be rewritten in place, for example a direct branch that might become a longer call sequence, should be padded with NOPs to the size of the longest form.
-- flycast-161 | Cover more operations natively instead of falling back to a slow path | In a fast path with a generic fallback, each uncovered case pays a full exit and re-entry, and may also flush register state.
-- flycast-162 | Resolve constant addresses at compile time | When a memory operand's address is known while the code is being compiled, translate it there into a direct host pointer, or fold the load when the target is read-only.
-- flycast-187 | Address guest state as a fixed offset from one base register | If generated code reaches every guest register at a constant displacement from a pinned base register, each access is a single load or store.
 - flycast-189 | Keep block-entry checks out of the common mode | Every check in a compiled block's prologue runs on every block entry.
 - flycast-197 | Unprotect only the bytes you patch | Toggling write permission on the whole free code region for one patch costs a large page-table change and TLB flushes.
-- flycast-205 | Direct-mapped code cache indexed by guest PC | One table entry per possible instruction address turns "find compiled code for PC" into a single indexed load and an indirect jump.
-- flycast-206 | Detect self-modifying code with page protection, and fall back to inline checks | Comparing code bytes on every block entry is expensive.
-- flycast-209 | Resolve constant addresses at compile time | If a load's address is a compile-time constant, the JIT can resolve the memory map while compiling.
 - flycast-221 | Recompile a small program only when it changes, and skip it when empty | Mark a dirty flag when program memory is written.
 - flycast-222 | Size the entry table to the maximum guest RAM and mask once | Size the code-entry table for the largest RAM configuration and mask the PC to that size, so the dispatch loop never needs the actual RAM size.
 - melonds-057 | Translate hot code into native blocks, keyed by address | An interpreter pays to fetch, decode and dispatch every instruction, every time it runs.
 - melonds-058 | Allocate registers with lookahead over the block | Map guest registers to host registers for the whole block.
 - melonds-059 | Eliminate side effects nobody reads (dead flag elimination) | If an operation updates state that the next consumer overwrites before reading it, the update is dead.
 - melonds-060 | Fold compile-time-known costs into one constant | If an accounting value, such as cycles or a gas or budget counter, is the same every time a block runs, sum it at compile time and apply it in one instruction at exit.
-- melonds-061 | Grow blocks across predictable branches (superblocks) | Ending a compiled block at every branch keeps blocks tiny, so dispatch overhead dominates and the optimizer sees little context.
+- melonds-061 | Grow blocks across predictable branches (superblocks) | Ending a compiled block at every branch keeps blocks tiny, so dispatch overhead dominates and the optimizer sees little context. (also: ares)
 - melonds-062 | Detect busy-wait loops and skip ahead in time | A loop that only reads memory and registers, with no stores and no loop-carried state, cannot make progress until something external changes.
 - melonds-063 | Constant-fold loads from read-mostly data, with invalidation | If the code loads from an address known at compile time, such as a PC-relative literal pool, and that data is almost never written, bake the value in as an immediate.
 - melonds-064 | Bind the handler at compile time when the operand is constant | A generic accessor has to decode an address into a device or region at run time.
 - melonds-065 | Speculate on the region observed at first execution, with a cheap guard | Most memory instructions hit the same kind of memory every time.
-- melonds-066 | Track code pages at fine granularity for cheap self-modifying-code checks | To detect writes to compiled code without slowing every store, keep a compact per-page record of the blocks that cover each page.
+- melonds-066 | Track code pages at fine granularity for cheap self-modifying-code checks | To detect writes to compiled code without slowing every store, keep a compact per-page record of the blocks that cover each page. (also: ares)
 - melonds-067 | Keep invalidated compiled code in a content-addressed side cache | Code that gets overwritten is often reloaded with identical bytes: overlays, DLL reloads, hot-reload.
 - melonds-068 | Chain compiled blocks with patchable direct jumps | Returning to a dispatcher after every block costs a call, a lookup and an indirect branch.
 - melonds-071 | Use caller-saved registers too, spilling only around calls | Restricting allocation to callee-saved registers keeps calls cheap but leaves only a few registers for values.
@@ -225,7 +184,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-086 | Propagate constants into addresses to resolve dispatch at compile time | A generic memory access must classify the address at runtime (RAM, I/O, unmapped) before calling the right handler.
 - melonds-087 | Specialize code on the case observed at compile time | The first execution of a code path is a cheap profile.
 - melonds-090 | Chain compiled units directly with patchable jumps | Returning to a central dispatcher after every block costs a hash lookup and an indirect branch.
-- melonds-091 | Recycle invalidated artifacts by content hash | Invalidation is often a false alarm: a write hits the page but leaves the bytes the artifact depends on unchanged, or code is unloaded and later reloaded identically.
+- melonds-091 | Recycle invalidated artifacts by content hash | Invalidation is often a false alarm: a write hits the page but leaves the bytes the artifact depends on unchanged, or code is unloaded and later reloaded identically. (also: ares)
 - melonds-093 | Widen the register pool by also using caller-saved registers | A code generator that uses only callee-saved registers never has to spill around calls, but on x86-64 that leaves only a handful of registers.
 - melonds-094 | Shrink the slow-path fallback set | In a mixed-mode system every operation that falls back to the generic path costs a full context switch: flush cached state, call out, reload.
 - melonds-095 | Peephole-trim generated code | Code generators built from per-operation templates leave small redundancies: moving a value into the register it is already in, or materializing a value that a following instruction could take directly.
@@ -240,7 +199,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-161 | Treat constants loaded from code as immediates, guarded by invalidation | PC-relative loads from literal pools inside code almost always read constants.
 - melonds-162 | Follow statically known branches inside a translation block | Ending a block at every branch costs a dispatcher round trip.
 - pcsx2-001 | Generate a specialized inner loop per configuration and cache it by key | When a hot loop's behavior depends on a dozen mode flags, a generic version tests every flag on every pixel or item.
-- pcsx2-005 | Resolve address translation at compile time for constant addresses | When a code generator can prove that an address is constant, it can do the page-table lookup itself and emit either a direct memory access or a direct call to the right handler.
+- pcsx2-005 | Resolve address translation at compile time for constant addresses | When a code generator can prove that an address is constant, it can do the page-table lookup itself and emit either a direct memory access or a direct call to the right handler. (also: Flycast)
 - pcsx2-006 | Fill dispatch tables with a "compile me" stub instead of null | If an empty slot in a lookup table holds null, every dispatch has to check for null and branch.
 - pcsx2-007 | Patch direct jumps when targets appear, using a back-reference list | Generated code that jumps to another block should jump straight there instead of returning to a dispatcher each time.
 - pcsx2-008 | Choose the shortest equivalent instruction encoding | When two encodings do the same thing, the shorter one fits more code into the instruction cache and the decoders.
@@ -250,8 +209,8 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-020 | Propagate constants to turn indirect jumps into direct branches | If simple constant tracking shows that the register used by an indirect jump holds a known value, the compiler can treat the jump as a direct branch: link to the target block, or compile it, at compile time.
 - pcsx2-024 | Don't spill or flush registers the operation leaves unchanged | A register cache should write back and invalidate only the values an operation actually modifies.
 - pcsx2-025 | Merge partial writes in a vector register cache instead of writing back | When a cached vector register is only partly modified, writing it to memory and reloading it to combine lanes costs two memory round trips.
-- pcsx2-058 | Emit trivial operations inline instead of calling a generic handler | If a frequently executed operation is only a few loads, tests and stores, generating that code directly avoids flushing cached registers, the function call itself, and any forced exit from the fast path.
-- pcsx2-059 | Generate nothing for operations that do nothing | A code generator that faithfully translates no-ops still pays for register flushes, calls and the instruction bytes.
+- pcsx2-058 | Emit trivial operations inline instead of calling a generic handler | If a frequently executed operation is only a few loads, tests and stores, generating that code directly avoids flushing cached registers, the function call itself, and any forced exit from the fast path. (also: ares, Flycast)
+- pcsx2-059 | Generate nothing for operations that do nothing | A code generator that faithfully translates no-ops still pays for register flushes, calls and the instruction bytes. (also: ares)
 - pcsx2-060 | Detect provably idle loops and fast-forward time | A polling loop whose body leaves the machine state unchanged each time round will keep spinning until some external event happens.
 - pcsx2-064 | Size a translation cache to the working set, and let it grow | If a code or result cache is smaller than the hot working set, it thrashes: entries are evicted and rebuilt over and over, and rebuilding costs far more than looking up.
 - pcsx2-068 | Don't save and restore registers nobody keeps live | Defensive save/restore around calls, such as freezing whole register files, adds memory traffic to every crossing between generated and native code.
@@ -263,13 +222,13 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-095 | Push rare-case work into the shared slow path | When code is generated inline at thousands of sites, every byte on the fast path is copied that many times and competes for instruction cache.
 - pcsx2-096 | Don't spill state for a feature that isn't implemented | Writing every cached register back to memory before an operation that "might fault" costs stores and later reloads on every memory access.
 - pcsx2-165 | Drop status-flag updates that are never read (liveness) | Emulated or generated code often computes status flags on every operation, although later code reads only a few of them.
-- pcsx2-184 | Pick instruction sets at code-generation time, not build time | A binary built for the lowest common CPU leaves newer instructions unused.
+- pcsx2-184 | Pick instruction sets at code-generation time, not build time | A binary built for the lowest common CPU leaves newer instructions unused. (also: Flycast)
 - pcsx2-185 | Specialize generated prologues and prefer 32-bit operations | Generated code knows its configuration, so it can skip saving, loading and restoring registers that this variant never uses.
 - pcsx2-187 | Pass helper arguments in registers from generated code | When generated code calls runtime helpers, a register calling convention avoids stack pushes and pops.
-- pcsx2-204 | Don't switch contexts for slices too small to do useful work | Entering and leaving a component (a JIT, a coroutine, a worker) has a fixed cost.
+- pcsx2-204 | Don't switch contexts for slices too small to do useful work | Entering and leaving a component (a JIT, a coroutine, a worker) has a fixed cost. (also: ares)
 - pcsx2-205 | Key compiled-code caches by the entry the code was compiled from | If the cache is indexed by where execution resumes rather than where the compiled unit starts, a resumed run misses and recompiles code it already has.
 - pcsx2-239 | Specialise generated kernels on per-batch constants | If a value is constant across a whole batch (every vertex has the same depth, say), compile or select a kernel variant that treats it as a constant.
-- pcsx2-244 | Keep guest registers in host registers for the life of a block | A JIT that loads each guest register from memory before every use and stores it after every write spends most of its time on memory traffic.
+- pcsx2-244 | Keep guest registers in host registers for the life of a block | A JIT that loads each guest register from memory before every use and stores it after every write spends most of its time on memory traffic. (also: Flycast)
 - pcsx2-245 | Preload a block's operands into free registers at entry | If registers are free when a block starts, scan ahead and load the values the block will read into them up front.
 - pcsx2-246 | Replace emitted store sequences with one shared wide-copy routine | Emitting one immediate store per word to restore a state struct bloats every block that needs it.
 - pcsx2-247 | Specialize instructions whose source is a hardwired zero register | When an operand is architecturally always zero, the general instruction does wasted work.
@@ -283,12 +242,12 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-261 | Address constants RIP-relative to free base registers | On x86-64, generated code can reach constants near the code buffer with RIP-relative addressing.
 - pcsx2-284 | Emit direct memory accesses and patch them when they fault | Reserve a host address range that mirrors the guest address space, and emit guest loads and stores as plain host accesses with no lookup.
 - pcsx2-285 | Dispatch through a two-level PC table and link block exits directly | To find compiled code for an arbitrary PC, index a page table by the upper half of the PC and a per-page array by the lower half, then jump indirectly.
-- pcsx2-286 | Detect self-modifying code with page protection, falling back to inline compares | Write-protect host pages that hold translated guest code, so a write to one faults and invalidates its blocks at no cost on normal runs.
+- pcsx2-286 | Detect self-modifying code with page protection, falling back to inline compares | Write-protect host pages that hold translated guest code, so a write to one faults and invalidates its blocks at no cost on normal runs. (also: Flycast)
 - pcsx2-292 | JIT one specialized function per pipeline-state key | Rather than a generic pixel loop that branches on dozens of state bits per pixel, pack the state into an integer key and generate a branch-free routine for each key the first time it is seen.
 - ppsspp-036 | Constant-fold through known register values at code-generation time | A code generator that tracks which registers hold compile-time constants can evaluate operations on them during compilation, emitting nothing or a single immediate.
-- ppsspp-037 | Choose richer target instructions and fuse instruction pairs | A one-to-one translation leaves throughput behind when the target ISA has more expressive instructions.
-- ppsspp-038 | Inline the common case, branch out to the slow path | Calling a safe helper for every memory access costs a call and register saves each time.
-- ppsspp-039 | Keep hot globals next to a pointer already held in a register | On load/store architectures, reaching a global costs extra instructions to build its address.
+- ppsspp-037 | Choose richer target instructions and fuse instruction pairs | A one-to-one translation leaves throughput behind when the target ISA has more expressive instructions. (also: ares)
+- ppsspp-038 | Inline the common case, branch out to the slow path | Calling a safe helper for every memory access costs a call and register saves each time. (also: ares)
+- ppsspp-039 | Keep hot globals next to a pointer already held in a register | On load/store architectures, reaching a global costs extra instructions to build its address. (also: Flycast)
 - ppsspp-040 | Spill fewer registers: compute in the destination, flush only caller-saved | Every temporary and every spill around a call costs memory traffic.
 - ppsspp-041 | Translate prefix-modified ops natively instead of falling back | If a fast path bails out to a slow generic handler whenever a modifier is present, even trivial modifiers turn hot code slow.
 - ppsspp-042 | Deduplicate constants and flush instruction caches incrementally | In generated code, identical constants should share one literal-pool slot, which shrinks code and cache footprint.

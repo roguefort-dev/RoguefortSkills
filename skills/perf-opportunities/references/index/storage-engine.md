@@ -1,4 +1,4 @@
-# Lens: storage-engine (67 techniques)
+# Lens: storage-engine (62 techniques)
 
 Persistence, logs, compaction, LSM trees, on-disk formats, bloom and other filters.
 
@@ -8,14 +8,10 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - nginx-142 | Carry warm state across reloads and binary upgrades instead of rebuilding cold | A configuration reload or binary upgrade creates a new process generation.
 - nginx-143 | Batch durable writes, bound their staleness with a timer, and compress them | Append records to a memory buffer and write it out in large chunks.
 - nginx-144 | Generate unique temp names from one shared atomic counter, with a random jump on collision | When several processes create temp files in the same directories, per-process counters collide and each collision costs a failed `open(O_EXCL)` and a retry.
-- postgresql-193 | Group commit: one flush makes many transactions durable | When many workers need the same expensive serialized operation, let one perform it for everyone queued so far.
 - postgresql-194 | Skip logging for data that a final sync or a crash makes moot | If an object is new and invisible to others until commit, write it directly and fsync once at the end instead of logging every change.
-- postgresql-195 | Skip durability work when nothing changed | Keep a cheap dirty flag and use it to skip the flush, the commit record or the checkpoint whenever there is nothing new to make durable.
-- postgresql-196 | Offer an opt-in weaker durability mode, and wake the flusher promptly | Let callers acknowledge a commit before the log flush, or once a replica has the data in memory rather than on disk, while a dedicated writer flushes on a timer and as soon as a log page fills.
 - postgresql-197 | Let writers copy into the shared log buffer in parallel | Reserve space in the shared append-only buffer with a tiny critical section, then let many writers copy their records into their reserved ranges at the same time.
 - postgresql-198 | Log fewer, denser records: deltas, deduplicated plans, one record per page operation | Log only the data replay needs, not unchanged state.
 - postgresql-199 | Shrink full-page images: drop the hole, then compress with a fast codec | Full-page images dominate log volume. Omit the unused gap inside each page, compress the rest with a codec that has a good speed-to-ratio balance, and reuse compression contexts across calls.
-- postgresql-200 | Recycle and preallocate log segments, and choose the cheapest sync primitive | Treat log files as a ring. Rename old segments for reuse instead of deleting and creating files, preallocate new ones fully, and sync only data (not metadata) where the platform allows it.
 - postgresql-201 | Keep short-lived durable state in the log, and defer or drop fsyncs that crash handling already covers | Don't create and fsync a separate file for state that usually disappears quickly.
 - postgresql-202 | Make replay fast: decode ahead, prefetch, skip reads and take the weakest correct lock | Recovery is a single-threaded consumer of a known future.
 - postgresql-203 | Filter and parallelize change streams at the source | In log-based replication, drop records the consumer will ignore before they are buffered, cheaply check whether a transaction is already doomed before spending I/O on it, and apply large transactions in…
@@ -26,11 +22,10 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - postgresql-208 | Skip maintenance phases that provably have nothing, or too little, to do | Run a secondary pass only when the primary pass found work for it.
 - postgresql-209 | Do deferrable work when its fixed cost is already paid, with caps | If you are about to write a log record or full-page image for a page anyway, also do the future work on that page now (freeze every tuple).
 - postgresql-210 | Write bulk-loaded data in its final state | If newly loaded data is invisible to others until commit, write it already committed, frozen and marked all-visible, so no later pass has to rewrite every page.
-- postgresql-211 | Throttle background maintenance with a budget, and re-baseline it for current hardware | Pace maintenance with a cost budget (pages hit, missed, dirtied) and a sleep, so it doesn't swamp foreground I/O.
 - postgresql-212 | Parallelize independent maintenance units | Split maintenance into independent pieces (one per index) and hand them to worker processes.
 - postgresql-213 | Leave headroom on bulk-built pages, and don't build side structures for tiny objects | When building a structure in bulk, fill pages only partway so the first updates don't split them.
 - redis-175 | Group commit: one write and one fsync per loop iteration, before any reply | Append every mutation of one event-loop iteration to an in-memory buffer, write and flush it once just before the loop sleeps, and only then let replies go out.
-- redis-176 | Make durability tunable, and keep fsync off the critical thread | Offer explicit durability levels (always, every second, never) so users trade a bounded loss window for throughput.
+- redis-176 | Make durability tunable, and keep fsync off the critical thread | Offer explicit durability levels (always, every second, never) so users trade a bounded loss window for throughput. (also: PostgreSQL)
 - redis-177 | Flush large sequential writes incrementally, overlapping writeback with work | When writing a big file, sync every few megabytes instead of once at the end.
 - redis-178 | Don't dirty shared pages while a fork snapshot is running | `fork()` gives a free point-in-time snapshot by sharing pages copy-on-write.
 - redis-179 | Persist the in-memory encoding as-is instead of re-serializing element by element | If a structure is already a flat, position-independent byte blob, write that blob to disk or the wire in one piece and load it back as a plain buffer.

@@ -35,12 +35,12 @@ Watch out: —
 Seen in Snes9x: `S9xSA1MainLoop` now runs up to 5 SA-1 opcodes per call instead of 3: `for (int i = 0; i < 5 && !(Memory.FillRAM[0x2200] & 0x60); i++)`. 162ccbb1 2017-11 “Increase the number of opcodes executed on the SA1 to 5 per S-CPU opcode.”
 
 ### snes9x-005 — Make tiny hot functions inlinable
-Lens: compiler-build · Source: Snes9x
+Lens: compiler-build · Source: Snes9x · Also: ares
 Principle: A call to a tiny function costs more than its body: argument setup, a jump and return, spilled registers, and no optimization across the call boundary. Mark per-instruction helpers `inline` or force-inline them so the compiler can fold them into the dispatch loop. This matters most in an interpreter's inner loop, where speed problems appeared as soon as the helpers stopped inlining.
 Why it is faster: —
 Applies elsewhere: getters and arithmetic helpers in game-engine math libraries. Byte-code VMs (`static inline` opcode helpers). Codec bit-readers.
 Watch out: —
-Seen in Snes9x: `SMP::tick()` and `Timer::tick()` were declared out-of-line, and one commit marks them `inline` “to fix speed issues”. Another marks the ALU helpers `op_adc`, `op_and`, `op_cmp`, `op_asl` and others `inline`. Later the DSP voice-pipeline stages `VOICE_CLOCK(V3c)` and `VOICE_CLOCK(V4)` in `SPC_DSP.cpp` were also made `inline`. 2b5a54b4 2011-07 “Inline ticks. This should fix speed issues.” · 804d419b 2012-01 “Inline some functions to avoid vtable lookups.” · 97f4067c 2018-04 “Inline a couple functions. ...”
+Seen in Snes9x: `SMP::tick()` and `Timer::tick()` were declared out-of-line, and one commit marks them `inline` “to fix speed issues”. Another marks the ALU helpers `op_adc`, `op_and`, `op_cmp`, `op_asl` and others `inline`. Later the DSP voice-pipeline stages `VOICE_CLOCK(V3c)` and `VOICE_CLOCK(V4)` in `SPC_DSP.cpp` were also made `inline`. 2b5a54b4 2011-07 “Inline ticks. This should fix speed issues.” · 804d419b 2012-01 “Inline some functions to avoid vtable lookups.” · 97f4067c 2018-04 “Inline a couple functions. ...” • Also seen in ares (ares-146): SH-2 `MOVWI`, `MOVLI` and `MOVA` each consist of a PC computation and one read, and all three had `NALL_NOINLINE`. The commit removed it. ed1e34c74 2025-04 “remove errant NALL_NOINLINE macro from SH2 instructions”
 
 ### snes9x-006 — Use non-short-circuit boolean operators on cheap conditions
 Lens: branching-fast-paths · Source: Snes9x
@@ -83,12 +83,12 @@ Watch out: —
 Seen in Snes9x: `fx_plot_2bit`/`fx_plot_4bit` (Super FX) computed the dithered colour `c` and then returned early if it was transparent. The transparency test now runs first on `COLR`: `if (!(GSU.vPlotOptionReg & 0x01) && !(COLR & 0xf)) return;`. bd9db572 2018-05 “Test for transparency before dithering.”
 
 ### snes9x-011 — Fix a runtime-selectable format at compile time
-Lens: compiler-build · Source: Snes9x
+Lens: compiler-build · Source: Snes9x · Also: ares
 Principle: Supporting several data formats through runtime dispatch puts an indirection or branch into every element operation. When a build only ever uses one format, make it a compile-time constant. The macros then reduce to straight shifts and masks the compiler can optimize.
 Why it is faster: —
 Applies elsewhere: template-specialized pixel or audio-sample formats in media libraries. Feature flags compiled out of embedded firmware. Monomorphized generics instead of trait objects.
 Watch out: —
-Seen in Snes9x: `GFX_MULTI_FORMAT` was defined unconditionally in `port.h`, so `BUILD_PIXEL` went through runtime-selected builders. It is now defined only by the unix port. `PIXEL_FORMAT` defaults to `RGB565`, GTK passes `-DPIXEL_FORMAT=RGB555`, and libretro requires RGB565 instead of switching at runtime. The commit says the `BuildPixel` calls cost about 3%. 51392652 2018-04 “Don't set GFX_MULTI_FORMAT if not needed. The BuildPixel calls cost ~3% performance.”
+Seen in Snes9x: `GFX_MULTI_FORMAT` was defined unconditionally in `port.h`, so `BUILD_PIXEL` went through runtime-selected builders. It is now defined only by the unix port. `PIXEL_FORMAT` defaults to `RGB565`, GTK passes `-DPIXEL_FORMAT=RGB555`, and libretro requires RGB565 instead of switching at runtime. The commit says the `BuildPixel` calls cost about 3%. 51392652 2018-04 “Don't set GFX_MULTI_FORMAT if not needed. The BuildPixel calls cost ~3% performance.” • Also seen in ares (ares-155): `Accuracy::RSP::SIMD = !SISD`, with `SISD = Reference | !ARCHITECTURE_SUPPORTS_SSE4_1`. Each vector op contains both an `if constexpr(Accuracy::RSP::SISD)` loop and an SSE block. The CPU/RSP `Recompiler` flags and `JitInterleaving` work the same way. current code: ares/n64/accuracy.hpp, ares/n64/rsp/interpreter-vpu.cpp
 
 ### snes9x-012 — Produce data in the format the consumer accepts natively
 Lens: platform · Source: Snes9x
@@ -315,12 +315,12 @@ Watch out: —
 Seen in Snes9x: The renderer templates moved from `tile.cpp` into `tileimpl.h`. The instantiations were split into `tileimpl-n1x1.cpp`, `tileimpl-n2x1.cpp` and `tileimpl-h2x1.cpp`, which were added to the Unix makefile and the Xcode project. 7603ed09 2019-05 “tile: Divide instantiations. This enables parallel compilation.”
 
 ### snes9x-040 — Enable link-time / whole-program optimization
-Lens: compiler-build · Source: Snes9x
+Lens: compiler-build · Source: Snes9x · Also: ares
 Principle: Without LTO the compiler cannot inline or specialize across source files, so hot calls between modules (CPU core to memory map, renderer to PPU) remain real calls. LTO (`-flto`, or MSVC `WholeProgramOptimization`) runs optimization again over the whole program at link time.
 Why it is faster: —
 Applies elsewhere: release builds of browsers and databases, firmware images where code size and speed both matter, Rust `lto = "fat"`.
 Watch out: —
-Seen in Snes9x: The libretro `Makefile` added `-flto` to CFLAGS/CXXFLAGS/LDFLAGS for Unix, macOS, iOS, Vita, Wii/WiiU and others. It was later removed for toolchains without LTO (PS3), and an override was added. The win32 project turned on `<WholeProgramOptimization>true`. 8064f7f2 2018-08 “Makefile Changes: Use Link-time optimization on GCC, and define __WIN32__ in all MSVC targets” · df9e37d7 2019-02 “win32: Fix poor performance with OpenGL/snes_ntsc.”
+Seen in Snes9x: The libretro `Makefile` added `-flto` to CFLAGS/CXXFLAGS/LDFLAGS for Unix, macOS, iOS, Vita, Wii/WiiU and others. It was later removed for toolchains without LTO (PS3), and an override was added. The win32 project turned on `<WholeProgramOptimization>true`. 8064f7f2 2018-08 “Makefile Changes: Use Link-time optimization on GCC, and define __WIN32__ in all MSVC targets” · df9e37d7 2019-02 “win32: Fix poor performance with OpenGL/snes_ntsc.” • Also seen in ares (ares-066): `nall/GNUmakefile` set `lto = true` for every non-debug build type. Tuning dropped `-fwhole-program` and switched to `-flto=auto -fno-fat-lto-objects` for GCC and `-flto=thin` for clang, which gave the Game Boy core about +10 fps on average. LTO was turned off in desktop-ui for a while and then made the default again: "the difference between barely scraping 50-55fps on 32x core to getting constant 60-70fps". cb9f94ae3 2021-07 “nall: enable lto by default on non-debug builds” · 9c5ecf52c 2022-07 “nall: tweak LTO settings for better performance in compiled builds” · 9aa05bcbe 2022-07 “nall: more LTO tuning” · 4da6316d1 2022-12 “desktop-ui: make LTO default again”
 
 ### snes9x-041 — Choose optimization levels per compiler, and keep the safe ones
 Lens: compiler-build · Source: Snes9x
@@ -371,20 +371,20 @@ Watch out: —
 Seen in Snes9x: In `apu/resampler.h`, `int end = (start + size) % buffer_size;` became `int end = start + size; if (end > buffer_size) end -= buffer_size;`. The new per-sample `push(l, r)` uses the same form. ac03faca 2019-02 “Add single sample push.”
 
 ### snes9x-047 — Render the final pass directly to the output surface
-Lens: gpu-rendering · Source: Snes9x
+Lens: gpu-rendering · Source: Snes9x · Also: Flycast
 Principle: In a multi-pass post-processing chain, the last pass doesn't need its own offscreen target that is then drawn again to the screen. Bind the default framebuffer and the final viewport for that pass. This saves a texture allocation, a full-screen draw and a bandwidth-heavy copy every frame.
 Why it is faster: —
 Applies elsewhere: web canvas filter chains, game post-processing stacks (tonemapping as the last pass), video players applying shaders before present.
 Watch out: —
-Seen in Snes9x: `GLSLShader::render` allocated a texture and FBO for every pass, and the GTK OpenGL driver then drew the result to the window. Now, for `lastpass`, it does `glBindFramebuffer(GL_FRAMEBUFFER, 0)` and sets the window viewport, and `S9xOpenGLDisplayDriver::update` just calls `gl_swap()`. A later commit saves and restores whatever framebuffer was bound so this also works under Wayland subsurfaces. 21dd926a 2018-05 “Output directly to framebuffer on last pass.”
+Seen in Snes9x: `GLSLShader::render` allocated a texture and FBO for every pass, and the GTK OpenGL driver then drew the result to the window. Now, for `lastpass`, it does `glBindFramebuffer(GL_FRAMEBUFFER, 0)` and sets the window viewport, and `S9xOpenGLDisplayDriver::update` just calls `gl_swap()`. A later commit saves and restores whatever framebuffer was bound so this also works under Wayland subsurfaces. 21dd926a 2018-05 “Output directly to framebuffer on last pass.” • Also seen in Flycast (flycast-075): `RenderFrame` in `gles.cpp` always called `fullscreenQuadCreateTemporaryFBO` and `DrawFullscreenQuad`. Now, when `HorizontalResolution` and `VerticalResolution` are both 100, it sets `glViewport` to the screen and draws directly. Below 100%, it renders to a smaller FBO and scales up. 8571be39f 2019-01 “Rendering resolution lowering (horizontal and vertical) is possible from the configuration menu”
 
 ### snes9x-048 — Set GPU state once, not every frame
-Lens: gpu-rendering · Source: Snes9x
+Lens: gpu-rendering · Source: Snes9x · Also: Flycast
 Principle: If the draw is always the same full-screen quad, bind vertex attribute pointers, enable arrays and upload vertex data once at setup or on resize. Re-specifying state every frame costs driver validation and CPU time and achieves nothing.
 Why it is faster: —
 Applies elsewhere: WebGL apps that rebind attributes per frame, UI toolkits re-uploading static geometry, Vulkan pipelines rebuilt instead of cached.
 Watch out: —
-Seen in Snes9x: `S9xOpenGLDisplayDriver::update` called `glUseProgram`, `glBindBuffer`, `glEnableVertexAttribArray` and `glVertexAttribPointer` (or `glVertexPointer` on legacy GL) before each `glDrawArrays`, then disabled them again. These now run once in `opengl_defaults`/`update_texture_size`, and the per-frame path is just `glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)`. The coordinate VBO is re-uploaded only on non-legacy paths, and only on size change. 1cd82509 2018-11 “GTK+: OpenGL: Don't reset state we don't change.” · b6858adf 2018-11 “GTK+: OpenGL: Only do this part on non-legacy.”
+Seen in Snes9x: `S9xOpenGLDisplayDriver::update` called `glUseProgram`, `glBindBuffer`, `glEnableVertexAttribArray` and `glVertexAttribPointer` (or `glVertexPointer` on legacy GL) before each `glDrawArrays`, then disabled them again. These now run once in `opengl_defaults`/`update_texture_size`, and the per-frame path is just `glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)`. The coordinate VBO is re-uploaded only on non-legacy paths, and only on size change. 1cd82509 2018-11 “GTK+: OpenGL: Don't reset state we don't change.” · b6858adf 2018-11 “GTK+: OpenGL: Only do this part on non-legacy.” • Also seen in Flycast (flycast-142): `drawQuad()` in `core/rend/gles/quad.cpp` built a 4-vertex array on the stack each time, with the V coordinate depending on `swapY`, and uploaded it. `initQuad()` now creates `quadBuffer` and `quadBufferSwapY` with `GL_STATIC_DRAW`, each with its own VAO. The draw just binds `swapY ? quadVertexArraySwapY : quadVertexArray`. 9781d8971 2022-12 “gl: use static buffers for quad vertices”
 
 ### snes9x-049 — Stream uploads through write-only, invalidated pixel buffers
 Lens: gpu-rendering · Source: Snes9x
@@ -659,12 +659,12 @@ Watch out: —
 Seen in Snes9x: With `VK_EXT_swapchain_maintenance1`, the swapchain is created with a `SwapchainPresentModesCreateInfoEXT` list. `set_vsync` then changes the present mode per present instead of recreating the swapchain, and `device.waitIdle()` before recreation became `wait_on_frames()`. In Qt's "reduce input lag" path, `context->wait_idle()` became `swapchain->wait_on_frames()`. A follow-up attached the present fence to the swapchain image rather than to the frame slot, so `begin_frame` waits only on `frame.fence`. 5949bbab 2024-06 “Vulkan: Utilize VK_EXT_swapchain_maintenance1.” · 2e25b70c 2024-06 “Vulkan: Associate new fence with swapchain image, not frame resources.”
 
 ### snes9x-083 — Choose the presentation mode for the latency goal
-Lens: gpu-rendering · Source: Snes9x
+Lens: gpu-rendering · Source: Snes9x · Also: Flycast
 Principle: FIFO blocks the producer on vblank. Mailbox replaces the queued image without blocking. Immediate presents with tearing. Pick per mode: FIFO for vsync, immediate or else mailbox when vsync is off, and mailbox where FIFO is known to stall (for example, occluded windows on some compositors).
 Why it is faster: —
 Applies elsewhere: the vsync options in any game settings menu, video players choosing a presentation mode, low-latency remote desktop clients.
 Watch out: —
-Seen in Snes9x: vulkan_swapchain.cpp went from `vsync ? eFifo : eImmediate` to using a `tearing_present_mode` that prefers mailbox. A later commit limited mailbox and immediate to the `!vsync` branch. On Wayland, mailbox is used because "FIFO can stall when other windows obscure the main window". 58bdb3ef 2023-10 “Vulkan: Use mailbox when available...” · 99990af3 2024-06 “Vulkan: Don't use mailbox for vsync case.” · 191cdf46 2025-01 “vulkan/wayland: Use mailbox present mode.”
+Seen in Snes9x: vulkan_swapchain.cpp went from `vsync ? eFifo : eImmediate` to using a `tearing_present_mode` that prefers mailbox. A later commit limited mailbox and immediate to the `!vsync` branch. On Wayland, mailbox is used because "FIFO can stall when other windows obscure the main window". 58bdb3ef 2023-10 “Vulkan: Use mailbox when available...” · 99990af3 2024-06 “Vulkan: Don't use mailbox for vsync case.” · 191cdf46 2025-01 “vulkan/wayland: Use mailbox present mode.” • Also seen in Flycast (flycast-199): DX11 checks `DXGI_FEATURE_PRESENT_ALLOW_TEARING`, creates the swap chain with `DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING`, and presents with `DXGI_PRESENT_ALLOW_TEARING` when vsync is off. Vulkan falls back from FIFO to `vk::PresentModeKHR::eMailbox` when immediate isn't supported, which fixed fast-forward on mobile. b7a2e605f 2024-05 “dx11: use ALLOW_TEARING flag to disable vsync if available” · 75feafbbf 2026-02 “vk: use mailbox present mode if immediate mode isn't available”
 
 ### snes9x-084 — Wait for actual presentation to keep CPU and display in lockstep
 Lens: gpu-rendering · Source: Snes9x
@@ -963,12 +963,12 @@ Watch out: —
 Seen in Snes9x: Most PPU cases in `S9xSetPPU` are wrapped as `case 0x2105: if (Byte != Memory.FillRAM[0x2105]) { FLUSH_REDRAW(); ... }`, using `FillRAM` as a shadow of the last written value. OAM writes in `REGISTER_2104` flush and set `OBJChanged` only `if (lowbyte != PPU.OAMData[addr] || highbyte != PPU.OAMData[addr + 1])`. current code: ppu.cpp (S9xSetPPU), ppu.h (REGISTER_2104)
 
 ### snes9x-121 — Decode-on-demand cache with write invalidation
-Lens: laziness · Source: Snes9x
+Lens: laziness · Source: Snes9x · Also: ares
 Principle: Keep decoded copies of source data in a cache, each with a valid flag. Decode an entry on first use. When the source is written, clear only the flags for the entries that cover the written bytes.
 Why it is faster: —
 Applies elsewhere: glyph atlases rasterized on first use; compiled-template caches invalidated by file mtime; texture upload caches keyed by a dirty bit.
 Watch out: —
-Seen in Snes9x: Planar SNES tiles are converted to one byte per pixel into `IPPU.TileCache[]`. `CachedTile::GetCachedTile()` calls `BG.ConvertTile` only `if (!BG.Buffered[TileNumber])`. Every VRAM write in `REGISTER_2118` clears `IPPU.TileCached[TILE_2BIT][address >> 4]`, `[TILE_4BIT][address >> 5]`, `[TILE_8BIT][address >> 6]` and the hi-res odd/even neighbours. current code: tileimpl.h (CachedTile), tile.cpp (ConvertTile*), ppu.h (REGISTER_2118/2119)
+Seen in Snes9x: Planar SNES tiles are converted to one byte per pixel into `IPPU.TileCache[]`. `CachedTile::GetCachedTile()` calls `BG.ConvertTile` only `if (!BG.Buffered[TileNumber])`. Every VRAM write in `REGISTER_2118` clears `IPPU.TileCached[TILE_2BIT][address >> 4]`, `[TILE_4BIT][address >> 5]`, `[TILE_8BIT][address >> 6]` and the hi-res odd/even neighbours. current code: tileimpl.h (CachedTile), tile.cpp (ConvertTile*), ppu.h (REGISTER_2118/2119) • Also seen in ares (ares-013): The new scanline PPU added `PPU::Cache::tile_2bpp/4bpp/8bpp`, which check `tilevalid[bpp][tile]` and on a miss decode the planar tile to 8-bit pixels at `tiledata[bpp] + (tile << 6)`. Background and sprite renderers then read pixels with `*tiledata++`. In total the new PPU was 22–34% faster than the old one. 0bf6c40d1 2010-09 “Update to v068r07 release.” · f1009ec63 2010-09 “Update to v068r08 release.”
 
 ### snes9x-122 — Remember "empty" so whole items can be skipped
 Lens: branching-fast-paths · Source: Snes9x
@@ -1043,20 +1043,20 @@ Watch out: —
 Seen in Snes9x: `COLOR_ADD::fn`: `int rb = (C1 & (RED_MASK|BLUE_MASK)) + (C2 & ...); int rbcarry = rb & ((0x20 << RED_SHIFT_BITS) | 0x20); ... int rgbsaturate = (((g & (0x20 << GREEN_SHIFT_BITS)) | rbcarry) >> 5) * 0x1f;`. `COLOR_SUB::fn` pre-sets the guard bits and ANDs with the borrow mask. Before this, the 1.52 code went through the 64 K `GFX.X2` table for addition and had per-channel `if (mC1 > mC2)` for subtraction. current code: gfx.h (COLOR_ADD, COLOR_SUB) 9721f78d
 
 ### snes9x-131 — Whole-value lookup tables for awkward per-channel ops
-Lens: lookup-tables · Source: Snes9x
+Lens: lookup-tables · Source: Snes9x · Also: Flycast
 Principle: When an operation on a packed 16-bit value is hard to express branch-free, precompute its result for all 65536 inputs (or for a small sum range) once. Each use becomes a single indexed load.
 Why it is faster: —
 Applies elsewhere: gamma tables for 8/16-bit images; CRC byte tables; 16-bit RGB→YUV tables in video converters.
 Watch out: —
-Seen in Snes9x: `S9xGraphicsInit()` builds `GFX.ZERO[0x10000]`, which clears every channel whose high bit is unset. `COLOR_SUB::fn1_2` uses it as `GFX.ZERO[((C1 | RGB_HI_BITS_MASKx2) - (C2 & RGB_REMOVE_LOW_BITS_MASK)) >> 1]`. `brightness_cap[64]` clamps channel sums to the current brightness ceiling in `COLOR_ADD_BRIGHTNESS`. current code: gfx.cpp (S9xGraphicsInit), gfx.h, ppu.cpp (S9xFixColourBrightness)
+Seen in Snes9x: `S9xGraphicsInit()` builds `GFX.ZERO[0x10000]`, which clears every channel whose high bit is unset. `COLOR_SUB::fn1_2` uses it as `GFX.ZERO[((C1 | RGB_HI_BITS_MASKx2) - (C2 & RGB_REMOVE_LOW_BITS_MASK)) >> 1]`. `brightness_cap[64]` clamps channel sums to the current brightness ceiling in `COLOR_ADD_BRIGHTNESS`. current code: gfx.cpp (S9xGraphicsInit), gfx.h, ppu.cpp (S9xFixColourBrightness) • Also seen in Flycast (flycast-030): `decoded_colors[3][65536]` in `softrend.cpp` is filled once for 565, 1555 and 4444 using `REP_32/REP_64/REP_16` bit replication. The texture path reads `decoded_colors[textype][pdata[u+v*width]]`. e6a9d3e66 2015-08 “softrend: Resembling a pixel pipeline, textures, sort, cull”
 
 ### snes9x-132 — Keep palettes pre-converted to the output format
-Lens: lookup-tables · Source: Snes9x
+Lens: lookup-tables · Source: Snes9x · Also: ares
 Principle: Convert source colours to the final display format, with global adjustments like brightness already applied, when the palette or the adjustment changes. Per-pixel output is then a single indexed load.
 Why it is faster: —
 Applies elsewhere: indexed-colour framebuffers with a hardware CLUT; terminal emulators caching ANSI-to-RGB maps; theme colours resolved at load time.
 Watch out: —
-Seen in Snes9x: On a CGRAM write, `REGISTER_2122` computes `IPPU.ScreenColors[PPU.CGADD] = BUILD_PIXEL(IPPU.Red[...], ...)` through `IPPU.XB` = `mul_brightness[PPU.Brightness]`. A brightness change (0x2100) calls `S9xFixColourBrightness()` and `S9xBuildDirectColourMaps()` to rebuild all 256 colours. current code: ppu.h (REGISTER_2122), ppu.cpp (S9xFixColourBrightness), globals.cpp (mul_brightness), gfx.cpp
+Seen in Snes9x: On a CGRAM write, `REGISTER_2122` computes `IPPU.ScreenColors[PPU.CGADD] = BUILD_PIXEL(IPPU.Red[...], ...)` through `IPPU.XB` = `mul_brightness[PPU.Brightness]`. A brightness change (0x2100) calls `S9xFixColourBrightness()` and `S9xBuildDirectColourMaps()` to rebuild all 256 colours. current code: ppu.h (REGISTER_2122), ppu.cpp (S9xFixColourBrightness), globals.cpp (mul_brightness), gfx.cpp • Also seen in ares (ares-014): The new PPU allocates `light_table[16][32768]`, which maps every 15-bit color at each of 16 brightness levels to output, and indexes `light_table[display_brightness][color]`. The video path was likewise reworked so each core's `video.generate_palette()` builds the native-to-output table once, and the UI blits with `*dp++ = palette[color]`. f1009ec63 2010-09 “Update to v068r08 release.” · 616372e96 2012-04 “Update to v088r03 release.” • Also seen in ares (ares-161): The SNES PPU registers `screen->colors(1 << 19, color)`. `refreshPalette()` fills `_palette[_colors]` lazily (`if(_palette) return;`), and the output loops are `*target++ = _palette[*source++]`. current code: ares/ares/node/video/screen.cpp, ares/sfc/ppu-performance/ppu.cpp
 
 ### snes9x-133 — Choose the pixel format at compile time
 Lens: compiler-build · Source: Snes9x
@@ -1179,20 +1179,20 @@ Watch out: —
 Seen in Snes9x: `fx_computeScreenPointers()` fills `GSU.apvScreen[32]` and `GSU.x[32]` for each height and mode. It runs only `if (GSU.vMode != GSU.vPrevMode || GSU.vPrevScreenHeight != GSU.vScreenHeight || GSU.vSCBRDirty)`. The plot then does `a = GSU.apvScreen[y >> 3] + GSU.x[x >> 3] + ((y & 7) << 1);`. current code: fxemu.cpp (fx_computeScreenPointers), fxinst.cpp (fx_plot_*)
 
 ### snes9x-148 — Fixed-point trig from quantized angle tables
-Lens: lookup-tables · Source: Snes9x
+Lens: lookup-tables · Source: Snes9x · Also: Flycast
 Principle: When angles come from a small integer domain, store sin/cos in fixed-point tables indexed by angle. Rotation and scale become table lookups, integer multiplies and shifts, with no floating-point calls.
 Why it is faster: —
 Applies elsewhere: embedded motor control; retro-style game engines; DSP oscillators with wavetables.
 Watch out: —
-Seen in Snes9x: `c4emu.cpp` holds `C4SinTable[512]` and `C4CosTable[512]` as `int16`. The scaling/rotation op computes `A = (int16) SAR(C4CosTable[READ_WORD(Memory.C4RAM + 0x1f80) & 0x1ff] * XScale, 15);`. current code: c4emu.cpp
+Seen in Snes9x: `c4emu.cpp` holds `C4SinTable[512]` and `C4CosTable[512]` as `int16`. The scaling/rotation op computes `A = (int16) SAR(C4CosTable[READ_WORD(Memory.C4RAM + 0x1f80) & 0x1ff] * XScale, 15);`. current code: c4emu.cpp • Also seen in Flycast (flycast-051): SH4 `fsca` takes a 16-bit angle. Both JITs translate it into a lookup in `sin_table`. ARM64 emits `Add(x1, x1, Operand(reg, UXTH, 3))` and then two post-indexed `Ldr`s. x64 emits `movzx rax, reg16` and indexes `[rcx + rax*8]`. 18a16f83a 2019-01 “arm64: more native opcodes implemented” · 31163b8d7 2019-01 “x64 dynarec: various fixes and optimizations — implemented fsca” • Also seen in Flycast (flycast-225): `f32_x2 sin_table[0x10000]` holds sin and cos pairs. Both the interpreter (`ctx->fr[n + 0] = sin_table[pi_index].u[0];`) and the dynarec canonical FSCA read from it. The `sinf`/`cosf` path remains only under a compile-time switch. `sh4_rom.cpp` was already present in the 2013 import (1c16baeb0). current code: core/hw/sh4/sh4_rom.cpp, core/hw/sh4/interpr/sh4_fpu.cpp, core/hw/sh4/dyna/shil_canonical.h
 
 ### snes9x-149 — Advance timers by N ticks in one call
-Lens: algorithms · Source: Snes9x
+Lens: algorithms · Source: Snes9x · Also: ares
 Principle: When several idle ticks happen back-to-back, advance every clocked counter by the whole count in one call instead of calling the single-tick routine N times. Overflow handling stays the same because the threshold is checked once.
 Why it is faster: —
 Applies elsewhere: simulation engines that jump idle entities forward by elapsed time; token-bucket rate limiters refilling by elapsed ms; game timers updated by delta time.
 Watch out: —
-Seen in Snes9x: The SPC700 core uses `op_io(2)`/`op_io(4)` for multi-cycle internal operations (e.g. `case 0x9f: op_io(4); ...`). These call `SMP::tick(unsigned clocks)`, which runs `Timer<f>::tick(clocks)` (`stage1_ticks += clocks; if (stage1_ticks < cycle_frequency) return;`) and bumps `clock`/`dsp.clock` by the count. current code: apu/bapu/smp/core.cpp, apu/bapu/smp/timing.cpp, apu/bapu/smp/core/oppseudo_*.cpp a19395ee
+Seen in Snes9x: The SPC700 core uses `op_io(2)`/`op_io(4)` for multi-cycle internal operations (e.g. `case 0x9f: op_io(4); ...`). These call `SMP::tick(unsigned clocks)`, which runs `Timer<f>::tick(clocks)` (`stage1_ticks += clocks; if (stage1_ticks < cycle_frequency) return;`) and bumps `clock`/`dsp.clock` by the count. current code: apu/bapu/smp/core.cpp, apu/bapu/smp/timing.cpp, apu/bapu/smp/core/oppseudo_*.cpp a19395ee • Also seen in ares (ares-003): GBA `CPU::step` used to run `for(n < clocks) timer_tick()`, testing a prescaler mask every cycle. `timer_step(clocks)` now does `timer.counter -= clocks; while(timer.counter <= 0) { timer.counter = timer.period(); ... }` and skips disabled or cascaded timers. The changelog reports Mr. Driller 2's title going from 170 to 400 fps. 303a0a67d 2012-04 “Update to v087r21 release.” • Also seen in ares (ares-095): `M32X::SH7604::step` looped `while(--cycles) { frt.run(); wdt.run(); }`. `FRT::run(cycles)` now computes `increments = counter / frequency` and does `frc += increments`. It sets `ovf` from `frc < prevFrc` and the compare-match flags from `u32(ocra - 1 - prevFrc) < increments`. `WDT::run` is similar. ab40ecbb9 2025-02 “md: slight performance boost with loop free 32x timers”
 
 ### snes9x-150 — Paste opcode bodies into one switch, build as one unit
 Lens: compiler-build · Source: Snes9x
@@ -1307,12 +1307,12 @@ Watch out: —
 Seen in Snes9x: `ApplySharpBilinear4x` uses `static constexpr uint16_t W[4] = { 0, 40, 128, 216 }` (smoothstep in 8.8). It computes `rtop[dx]`/`rbot[dx]` once per 4×4 block, then blends vertically for each `dy`. Gamma conversions go through `gamma_r_encode[32]`/`gamma_decode[256]` tables, and parameters are declared `uint8_t* __restrict`. current code: filter/sharpbilinear_flexible.cpp
 
 ### snes9x-164 — Data-parallel post-processing by horizontal bands
-Lens: concurrency · Source: Snes9x
+Lens: concurrency · Source: Snes9x · Also: ares
 Principle: Split an image filter into horizontal bands and run them on a persistent thread pool. Give each band the extra neighbour rows it reads, and keep stateful filters single-threaded. The pool is created once and reused every frame.
 Why it is faster: —
 Applies elsewhere: tile-parallel image processing in photo editors; parallel video scaling (FFmpeg slice threads); map/reduce over row ranges.
 Watch out: —
-Seen in Snes9x: `internal_threaded_filter()` in `gtk/src/gtk_display.cpp` queues `num_threads` jobs with `job_height = height / num_threads & ~3` on a `threadpool`, and skips threading for NTSC ("has internal state"). `xbrz::scale(..., yFirst, yLast)` takes a row range, so `win32/render.cpp` runs it on several threads. current code: gtk/src/gtk_display.cpp, gtk/src/threadpool.cpp, filter/xbrz.cpp, win32/render.cpp
+Seen in Snes9x: `internal_threaded_filter()` in `gtk/src/gtk_display.cpp` queues `num_threads` jobs with `job_height = height / num_threads & ~3` on a `threadpool`, and skips threading for NTSC ("has internal state"). `xbrz::scale(..., yFirst, yLast)` takes a row range, so `win32/render.cpp` runs it on several threads. current code: gtk/src/gtk_display.cpp, gtk/src/threadpool.cpp, filter/xbrz.cpp, win32/render.cpp • Also seen in ares (ares-012): The XShm video driver's `refresh()` scaling loop got `#pragma omp parallel for` over `y`, and the build added `-fopenmp`. The changelog reports 101 to 111 fps at 4x scale. fc8eba133 2015-05 “Update to v094r18 release.”
 
 ### snes9x-165 — Optional hand-written assembly backends behind build flags
 Lens: platform · Source: Snes9x

@@ -1,14 +1,6 @@
-# ares — technique cards (164)
+# ares — technique cards (96)
 
 Each card is exactly 7 lines. Fetch one with: grep -A 6 "^### ares-NNN " ares.md
-
-### ares-001 — Keep timed events in a min-heap
-Lens: algorithms · Source: ares
-Principle: When many future events wait on a shared clock, put them in a binary min-heap keyed by due time. Each tick then checks only the top of the heap, and inserts cost O(log n). This replaces polling every pending event on every tick.
-Why it is faster: —
-Applies elsewhere: timer wheels and heaps in event loops (libuv, Node timers), job schedulers, network retransmit timers, game-engine delayed actions.
-Watch out: —
-Seen in ares: The new speed-oriented S-CPU core uses a `nall::priority_queue<unsigned>` (a binary min-heap array). `CPU::add_clocks` calls `queue.tick(clocks)`, and DRAM refresh and HDMA are enqueued as `QueueEvent`s, e.g. `queue.enqueue(534, QueueEvent::DramRefresh)`. The changelog credits this core with a ~40% speedup. Super Scope/Justifier latching was later added on the same queue, which the changelog says cost nothing. 9000bb408 2010-08 “Update to 20100810-2 release.” · 70429285b 2010-08 “Updated to v067r23 release.”
 
 ### ares-002 — Test whether a trigger falls inside the step you just took
 Lens: algorithms · Source: ares
@@ -17,14 +9,6 @@ Why it is faster: —
 Applies elsewhere: collision detection with swept intervals, rate limiters that check whether a deadline passed between two samples, animation keyframe lookups between frames.
 Watch out: —
 Seen in ares: The fast CPU core detects H-IRQs with `hcounter() <= htime*4 && hcounter() + clocks > htime*4` inside `add_clocks`, instead of checking every clock. A follow-up extended this range testing across scanline boundaries, which the changelog credits for part of a 12–15% gain. 9000bb408 2010-08 “Update to 20100810-2 release.” · fa0f1c1e9 2010-08 “Update to 20100811 release.”
-
-### ares-003 — Replace per-tick loops with one bulk subtraction
-Lens: algorithms · Source: ares
-Principle: If a counter just counts down and fires on reaching zero, subtract the whole elapsed amount at once and loop only for the reloads that actually happened. The cost then scales with the number of events, not the number of ticks.
-Why it is faster: —
-Applies elsewhere: token-bucket refills computed from elapsed time, embedded tick handlers that catch up after sleep, game cooldown timers updated with `dt`.
-Watch out: —
-Seen in ares: GBA `CPU::step` used to run `for(n < clocks) timer_tick()`, testing a prescaler mask every cycle. `timer_step(clocks)` now does `timer.counter -= clocks; while(timer.counter <= 0) { timer.counter = timer.period(); ... }` and skips disabled or cascaded timers. The changelog reports Mr. Driller 2's title going from 170 to 400 fps. 303a0a67d 2012-04 “Update to v087r21 release.”
 
 ### ares-004 — Poll idle waits at a coarse interval
 Lens: laziness · Source: ares
@@ -66,14 +50,6 @@ Applies elsewhere: batching DB writes per request, flushing logs per N lines, sy
 Watch out: —
 Seen in ares: For Super Game Boy audio the CPU "sync[s] DSP and Coprocessor once per scanline". In the fast profile, the S-DSP syncs per sample instead of per clock (`#if defined(PROFILE_FAST) step(32*3*8)`), described as "a fairly significant speedup" that only hurts one game. b433838e9 2011-02 “Update to v075r06 release.” · 5d29700fa 2018-05 “Update to v106r33 release.”
 
-### ares-009 — Ship several fidelity tiers of the same component
-Lens: other · Source: ares
-Principle: When exactness and throughput conflict, keep an exact implementation as the reference and add faster approximations behind a build or runtime switch. Each user picks the cost they can afford, and the reference stays available for checking the fast tiers.
-Why it is faster: —
-Applies elsewhere: fast/precise math libraries (`-ffast-math`), LOD tiers in renderers, approximate vs exact query modes in analytics engines.
-Watch out: —
-Seen in ares: bsnes v068 shipped accuracy, compatibility and performance cores. The performance core has a new range-tested S-CPU, a scanline PPU and blargg's DSP. The changelog lists 58 / 172 / 274 fps for asnes / bsnes / csnes. Later, cycle-exact SA-1 sync became an opt-in `ACCURATE_SA1` define, because enabling it cost 51% in SA-1 games. a59ecb3dd 2010-08 “Include all the code from the bsnes v068 tarball.” · 1a32ed7cf 2010-10 “Updated to 20100813 release.” · a3e0f6da2 2018-09 “Update to v106r60 release.”
-
 ### ares-010 — Generate fast and exact variants from one description
 Lens: compiler-build · Source: ares
 Principle: Describe the behavior once in a small DSL and generate both a coarse version and a fine-grained version from it. You get two speed tiers without maintaining two hand-written copies that drift apart.
@@ -90,38 +66,6 @@ Applies elsewhere: deferred rendering command lists, collecting log records and 
 Watch out: —
 Seen in ares: The new fast PPU latches each scanline's state during emulation. At V=241 it runs `#pragma omp parallel for` over `lines[y].render()` for all visible lines. With the skeleton in place bsnes already ran at about 220 fps, against 230 fps with no PPU and 120 fps with the accuracy PPU. 6c8e3c885 2018-05 “Update to v106r28 release.”
 
-### ares-012 — Split image loops across cores by row
-Lens: concurrency · Source: ares
-Principle: Rows of a scaled or filtered image are independent, so annotate the outer row loop for parallel execution. It is close to free to add and scales with core count.
-Why it is faster: —
-Applies elsewhere: image resizing in thumbnailers, per-row convolution, CPU-side video color conversion.
-Watch out: —
-Seen in ares: The XShm video driver's `refresh()` scaling loop got `#pragma omp parallel for` over `y`, and the build added `-fopenmp`. The changelog reports 101 to 111 fps at 4x scale. fc8eba133 2015-05 “Update to v094r18 release.”
-
-### ares-013 — Decode on demand, cache it, invalidate on write
-Lens: laziness · Source: ares
-Principle: Keep a decoded copy of data that is stored in an awkward format, with a valid flag per entry. Clear the flag when the source changes and decode again only on the next use. Repeat reads then cost a plain array access.
-Why it is faster: —
-Applies elsewhere: glyph caches in text renderers, decoded-texture caches, memoized parsed config, CPU instruction decode caches.
-Watch out: —
-Seen in ares: The new scanline PPU added `PPU::Cache::tile_2bpp/4bpp/8bpp`, which check `tilevalid[bpp][tile]` and on a miss decode the planar tile to 8-bit pixels at `tiledata[bpp] + (tile << 6)`. Background and sprite renderers then read pixels with `*tiledata++`. In total the new PPU was 22–34% faster than the old one. 0bf6c40d1 2010-09 “Update to v068r07 release.” · f1009ec63 2010-09 “Update to v068r08 release.”
-
-### ares-014 — Precompute color transforms into tables
-Lens: lookup-tables · Source: ares
-Principle: When a per-pixel transform depends on a small input domain and a few settings, tabulate it for every input. Rebuild the table only when the settings change. Each pixel then costs one load instead of arithmetic.
-Why it is faster: —
-Applies elsewhere: gamma/LUT color grading, palette-indexed rendering, sRGB↔linear conversion tables.
-Watch out: —
-Seen in ares: The new PPU allocates `light_table[16][32768]`, which maps every 15-bit color at each of 16 brightness levels to output, and indexes `light_table[display_brightness][color]`. The video path was likewise reworked so each core's `video.generate_palette()` builds the native-to-output table once, and the UI blits with `*dp++ = palette[color]`. f1009ec63 2010-09 “Update to v068r08 release.” · 616372e96 2012-04 “Update to v088r03 release.”
-
-### ares-015 — Hoist per-line invariants out of per-pixel code
-Lens: laziness · Source: ares
-Principle: Values that depend only on settings latched for the current line or batch should be computed once at the start of that line and stored in fields. The per-element loop then does only per-element work.
-Why it is faster: —
-Applies elsewhere: computing row strides and clip bounds before an inner pixel loop, preparing query plans once per batch.
-Watch out: —
-Seen in ares: The ppu-new background renderer split `render()` so that `Background::scanline()` computes `hires`, `width`, `tile_width/height`, `mask_x/y` and `scx/scy` once per line. `get_tile()` and the per-pixel path reuse them. The total renderer speedup was 13.5% (254→289 fps). 7df9157ab 2010-09 “Update to v068r10 release.”
-
 ### ares-016 — Build each line's working set once before the per-pixel pass
 Lens: laziness · Source: ares
 Principle: Scan a large table once per batch to extract the few entries that apply, decoding their attributes at the same time. The inner loop then iterates over a short decoded list instead of re-reading and re-decoding the whole table.
@@ -129,14 +73,6 @@ Why it is faster: —
 Applies elsewhere: spatial culling to a visible list before drawing, prefiltering rules applicable to a request, building per-frame active-entity lists.
 Watch out: —
 Seen in ares: The WonderSwan PPU added `renderSpriteDecode()`, which per scanline reads sprite attributes from IRAM into a `sprites` vector of at most 32 entries. The changelog calls it an "absolutely massive speed-up". Earlier, the SNES scanline PPU had used a global dirty flag and then sprite-list updates on OAM writes to avoid rebuilding sprite lists. c33065fbd 2016-03 “Update to v097r24 release.” · 70429285b 2010-08 “Updated to v067r23 release.”
-
-### ares-017 — Store derived state instead of recomputing it in hot getters
-Lens: memory-layout · Source: ares
-Principle: If a hot getter branches on a mode or derives its value from other fields, compute the value when its inputs change and store it. Reads become one load with no branch.
-Why it is faster: —
-Applies elsewhere: caching computed CSS layout values, denormalized columns in databases, memoized getters in UI models.
-Watch out: —
-Seen in ares: `PPU::interlace()/overscan()/vdisp()` used to test `system.fastPPU()` and forward to the other PPU or compute `!io.overscan ? 225 : 240`. They now return `display.interlace`, `display.overscan` and `display.vdisp`, cached fields (277→291 fps with the fast PPU). The fast PPU also renders mode 7 and sprites from a local cached `cgram[]` instead of `ppu.cgram`. 5b97fa241 2018-06 “Update to v106r42 release.” · 5d29700fa 2018-05 “Update to v106r33 release.”
 
 ### ares-018 — Store comparison operands in the form the hot test needs
 Lens: branching-fast-paths · Source: ares
@@ -186,14 +122,6 @@ Applies elsewhere: struct-of-arrays for entity components, bytecode VMs with reg
 Watch out: —
 Seen in ares: The M68K `read<Size>(DataRegister/AddressRegister)` used a 16-case `switch` over `r.d0…r.a6, ssp/usp`. It became `return clip<Size>(r.da[reg.number]);`. The changelog says register access became "about eight times faster than the old system". 4b897ba79 2016-07 “Update to v100r10 release.”
 
-### ares-024 — Force-inline small hot accessors across translation units
-Lens: compiler-build · Source: ares
-Principle: Tiny getters and memory helpers called per pixel or per cycle cost more in call overhead than in work. Marking them always-inline in headers lets the compiler fold them into callers and optimize across them.
-Why it is faster: —
-Applies elsewhere: header-only math libraries, `__forceinline` accessors in game engines, Rust `#[inline]` on cross-crate helpers.
-Watch out: —
-Seen in ares: The accuracy PPU headers converted `vram_read/write`, `oam_read`, `cgram_read`, `get_color`, `hoffset/voffset`, `add_clocks`, `run()` and others to `alwaysinline`. The changelog expects the accuracy profile to be about 7.5% faster. 39ca8a2fa 2015-05 “Update to v094r17 release.”
-
 ### ares-025 — Tune the toolchain: optimization level, target CPU, PGO
 Lens: compiler-build · Source: ares
 Principle: Compiler flags and versions can be worth double-digit percentages. Use aggressive levels, target the host ISA, omit frame pointers, and use profile-guided optimization so the compiler knows which branches are hot.
@@ -202,46 +130,6 @@ Applies elsewhere: PGO builds of browsers and Python, `-march=native` for local 
 Watch out: —
 Seen in ares: The Makefile gained `make pgo=instrument` / `pgo=optimize`. An earlier note says unprofiled binaries were about 15% slower. Flags became `-march=native -O3 -fomit-frame-pointer` (97→99 fps). The changelog reports gcc-4.7 binaries "up to 20% faster" than gcc-4.6. Later, `build=release` became `-O2`, with `build=optimize` for `-O3`. b28c54770 2011-08 “Update to v081r03 release.” · 1a32ed7cf 2010-10 “Updated to 20100813 release.” · 7a96321e7 2012-02 “Update to v086r03 release.” · bb4db22a7 2012-04 “Update to v088r07 release.” · 1ff315838 2017-09 “Update to v104r13 release.”
 
-### ares-026 — Smaller code over template-expanded copies
-Lens: memory-layout · Source: ares
-Principle: Instantiating a function per register or per constant multiplies code size and pressure on the instruction cache. Passing the value as a runtime argument through a switch often costs nothing measurable and can be faster, because more of the hot code stays in cache. The same applies to big lookup tables that a short loop can replace.
-Why it is faster: —
-Applies elsewhere: reducing C++ template bloat in embedded firmware, outlining cold paths, replacing large static tables with computation on small MCUs.
-Watch out: —
-Seen in ares: The 65816 dispatcher moved from a jump table of template opcodes to a switch passing register references as arguments ("~1% speedup", smaller binary "and thus cache"). Removing templates shrank LR35902 from 386.2 KB to 197.4 KB of object code and R6502 from 146.5 to 107.6 KB, and the changelog says this "doesn't cause any speed penalty". The SPC7110 Morton lookup tables became for-loops on the reasoning that "less L2 cache usage" would offset the loss. The GSU cleanup went from 479 KB to 100 KB of object code and was "slightly faster". 83f684c66 2015-06 “Update to v094r29 release.” · 20ac95ee4 2016-06 “Update to v098r15 release.” · 3681961ca 2016-06 “Update to v098r16 release.” · 8ae6444af 2011-06 “Update to v080r01 release.” · 839813d0f 2016-06 “Update to v098r13 release.”
-
-### ares-027 — Pre-decode every opcode into a table of bound handlers
-Lens: lookup-tables · Source: ares
-Principle: For an instruction set whose encoding packs operands into the opcode, enumerate every opcode once at startup and store a handler with its operands already decoded. Execution is then one load and one call per instruction, with no field extraction at run time.
-Why it is faster: —
-Applies elsewhere: threaded-code interpreters, bytecode VMs with pre-resolved operands, regex engines compiling to state tables.
-Watch out: —
-Seen in ares: The M68K constructor fills a 65,536-entry `instructionTable` using `bind(opcode, NAME, EffectiveAddress{mode, reg}, …)` lambdas over every register and mode combination. `instruction()` is just `instructionTable[readPC()]()`. The changelog explains this "extreme templating" as a way "to reduce instruction decoding overhead". Conversely, the TLCS900H changelog says routing register access through a switch rather than unrolled 3-bit indexes "is going to hurt the performance a good deal". 37b610da5 2019-01 “Update to v106r83 release.” · 41148b102 2019-01 “Update to v106r74 release.”
-
-### ares-028 — Skip output work when nobody will see it
-Lens: laziness · Source: ares
-Principle: When running faster than the display can show, still advance the simulation but skip rendering most frames. Output-heavy work drops by the skip factor and state stays exact.
-Why it is faster: —
-Applies elsewhere: headless test runs of games, server-side simulation without rendering, throttled UI updates during bulk processing.
-Watch out: —
-Seen in ares: The compatibility and performance PPUs gained `set_frameskip()`. `if(display.framecounter) return;` skips the frame and `framecounter = (framecounter + 1) % frameskip` advances the count. Fast forward turns off sync and uses frameskip 9, which the v069 notes report as about 80% faster. 92ab697f8 2010-09 “Update to v068r17 release.” · ccfff8614 2010-09 “Update to v069 release.”
-
-### ares-029 — Rate-limit expensive host queries
-Lens: io · Source: ares
-Principle: If a host API call is costly and its result changes slowly, remember when you last called it and return immediately if less than N ms have passed. Callers above the natural rate stop paying for redundant queries.
-Why it is faster: —
-Applies elsewhere: throttling `getBoundingClientRect` or geolocation polling, debouncing filesystem stat calls, caching DNS lookups briefly.
-Watch out: —
-Seen in ares: `InputManager::poll()` now checks `if(chrono::millisecond() - lastPoll < latency) return;` with a default `Input/Latency` of 5. The changelog reports Zelda 3 uncapped going from 133 to 142 fps. f5e5bf177 2016-08 “Update to v100r16 release.”
-
-### ares-030 — Batch small writes into a buffer before the syscall
-Lens: io · Source: ares
-Principle: One system call per tiny item is dominated by per-call cost. Accumulate items in a fixed user-space buffer and flush it in one call when it fills.
-Why it is faster: —
-Applies elsewhere: buffered stdio, Nagle-style batching, bulk inserts, coalescing WebSocket messages.
-Watch out: —
-Seen in ares: The OSS audio driver called `write()` for every sample of every channel. It now appends to `uint16_t _outputBuffer[256]` and calls `write(_fd, &_outputBuffer, sizeof(_outputBuffer))` when the buffer is full. bsnes went from 290 to 330 fps on FreeBSD. 716c95f27 2018-07 “Update to 20180728 release.”
-
 ### ares-031 — Use a recursive IIR instead of a long FIR where phase allows
 Lens: algorithms · Source: ares
 Principle: A windowed-sinc FIR filter needs many taps per output sample and often a decimation stage. A cascade of second-order IIR sections gets a comparable cutoff from a handful of multiply-adds and two state variables per section.
@@ -249,30 +137,6 @@ Why it is faster: —
 Applies elsewhere: audio EQ in DAWs and embedded DSP, sensor smoothing on MCUs, anti-aliasing before resampling.
 Watch out: —
 Seen in ares: The audio path replaced a Blackman-windowed sinc FIR plus Hermite resampler with a sixth-order Butterworth built from `struct Biquad { double a0, a1, a2, b1, b2; double z1, z2; }` sections in transposed direct form II. The changelog calls it "faster, no need for decimation, less code". Earlier, the sinc filter had dropped the frame rate from about 240 to 150 fps. 839813d0f 2016-06 “Update to v098r13 release.”
-
-### ares-032 — Store data at the width it is consumed
-Lens: memory-layout · Source: ares
-Principle: If memory is always read as 16-bit units, store it as 16-bit units. Reassembling words from byte pairs on every read costs two loads, a shift and an OR.
-Why it is faster: —
-Applies elsewhere: storing pixel data as `uint32` RGBA, aligning network buffers for word reads, typed arrays instead of byte arrays in JS.
-Watch out: —
-Seen in ares: The GBA PPU moved to 16-bit PRAM read directly as `pram[color]`, which the changelog calls a "decent speedup". The new SNES scanline PPU used "little-endian word reads where applicable". The SNES PPU switched to `uint16 vram[32768]`, so `tile = ppu.vram[address]` replaced `vram[a] | vram[a+1] << 8`. The changelog measured that change as a wash. 01b4cb991 2012-04 “Update to v087r20 release.” · f1009ec63 2010-09 “Update to v068r08 release.” · ccd8878d7 2016-06 “Update to v099r07 release.”
-
-### ares-033 — Compile instrumentation out of release builds
-Lens: compiler-build · Source: ares
-Principle: Debug hooks in hot loops cost a test and a call even when nothing is attached. Wrap them in a type whose invoke compiles to nothing unless a debug build flag is set. Release builds then pay zero.
-Why it is faster: —
-Applies elsewhere: `assert` and logging macros removed under `NDEBUG`, compile-time tracing in kernels, feature-flagged telemetry.
-Watch out: —
-Seen in ares: The CPU gained a `struct Debugger { hook<void (uint32)> op_exec, op_read; hook<void (uint32, uint8)> op_write; }` called from `op_step` and the bus accessors. The changelog says hooks don't perform the test or invocation when `DEBUGGER` isn't defined, so regular builds have no overhead. This replaced `debugvirtual` overrides. Earlier, the debugger had been changed "to not break out of core for simple things", going from sub-1 fps to near full speed with breakpoints set. 730e6ae4c 2012-02 “Update to v085r04 release.” · 92da6bde2 2011-01 “Update to v073r07 release.”
-
-### ares-034 — Unroll tiny fixed-count loops by hand
-Lens: compiler-build · Source: ares
-Principle: A loop over exactly four elements carries an induction variable, a compare and a branch. Writing out the four bodies lets each use constant offsets and removes loop overhead. With a non-short-circuit `|`, a "repeat while any made progress" loop also loses its flag variable.
-Why it is faster: —
-Applies elsewhere: RGBA channel processing, 4×4 matrix code, polling a fixed set of peripherals in firmware.
-Watch out: —
-Seen in ares: GBA `CPU::step` replaced `for(auto& dma : this->dma)` and `for(auto& timer : timer)` with explicit `dma[0..3]` / `timer[0..3].run()`, and turned the DMA loop into `while(dma[0].run() | dma[1].run() | dma[2].run() | dma[3].run());`. The changelog calls it "optimized … as much as I could for a slight speedup". ba384a7c4 2017-08 “Update to v104 release.”
 
 ### ares-035 — Keep coroutine stacks small for cache locality
 Lens: memory-layout · Source: ares
@@ -298,30 +162,6 @@ Applies elsewhere: compiling a regex or bytecode program into an array of handle
 Watch out: —
 Seen in ares: The v118 notes say the N64 and PS1 cores use cached interpreters, "a middle-ground" between interpreters and recompilers. For the 32X, `sh2.cpp` switched from `recompiler.cpp` to `cached.cpp`, which was faster than pure interpretation but more compatible than the full recompiler. Its `emitInstruction` expands `decoder.hpp` so each opcode becomes `call(&SH2::name, &self, args...)`. A later commit made `emitInstruction` `alwaysinline` so the decoder switch folds into the emit loop. 44bdc531b 2021-02 “Update to ares v118 release.” · 27d0826e3 2021-07 “sh2: use cached interpreter instead of recompiler” · 934202c24 2021-07 “sh2: further optimize code gen for the cached interpreter”
 
-### ares-038 — Grow a JIT incrementally: inline the easy operations, call out for the rest
-Lens: jit-interpreters · Source: ares
-Principle: You don't need a complete code generator before getting a speedup. Start with every operation calling the interpreter's handler, then replace the common and simple ones (add, move, logic) with a few inline host instructions. Each operation you convert removes a call and its argument setup, and the rare or complex cases still work through the same fallback.
-Why it is faster: —
-Applies elsewhere: a query compiler that generates code for simple predicates but calls a generic evaluator for UDFs. A shader translator that handles the common opcodes natively and keeps a slow path for exotic ones. Template specializers in JS engines.
-Watch out: —
-Seen in ares: In v119r15, `n64/cpu/recompiler.cpp` grew from a decoder include into an explicit per-opcode switch that still mostly calls `CPU::instructionXXX` with pointers to registers. In v119r16, simple ops are emitted inline. For example, `ADDU` went from three `lea`s plus a `call(&CPU::instructionADDU)` to `mov(esi, Rs); add(esi, Rt); movsxd(rsi, esi); mov(Rd, rsi);`, while `DADDU` still calls `CPU::DADDU`. The PS1 CPU and the RSP followed the same path. 25771ba20 2021-05 “Update to ares v119r15 release.” · 1b574d0bb 2021-05 “Update to ares v119r16 release.”
-
-### ares-039 — Spread fixed per-dispatch cost over a minimum batch of work
-Lens: jit-interpreters · Source: ares
-Principle: If each trip through a dispatcher carries fixed overhead (lookup, synchronisation, bookkeeping), very short units of work let that overhead dominate. Keep executing units in a tight loop until a minimum amount of work has accumulated, and only then do the expensive bookkeeping. Add an escape hatch that ends the batch early when something happens that other parties must see promptly.
-Why it is faster: —
-Applies elsewhere: Nagle-style batching of small writes, draining several messages per wake-up in an event loop, a GPU driver that submits a command buffer only when it reaches a size threshold, but flushes immediately on a fence.
-Watch out: —
-Seen in ares: `SH2::instruction()` ran one recompiled block per call. It now loops `do { block = recompiler.block(PC-4); block->execute(); } while(CCR <= recompiler.min_cycles);`, and the 32X sets `min_cycles = 46`. Later, writes to the uncached area zero the budget so that shared-memory communication is seen promptly. The final form loops `while(CCR < cyclesUntilSync)`, which unifies the interpreter and the recompiler. 3da4e2090 2021-07 “sh2: allow cores to set min recompiler block size” · 109ebc468 2021-07 “32x: use min block size of 46 for sh2 rec” · a4d03c263 2022-09 “sh2: break min_cycles loop on uncached writes” · cbfd7ed27 2022-09 “m32x: unify interpreter/recompiler sync timing”
-
-### ares-040 — Synchronise cooperating tasks on a budget, not on every step
-Lens: concurrency · Source: ares
-Principle: Switching between cooperative threads or coroutines costs a context switch and pollutes the caches. If a producer synchronises after every tiny step, most switches find nothing new to do. Keep a countdown of work since the last sync and only switch when it reaches zero, choosing the interval as the coarsest one that consumers can tolerate.
-Why it is faster: —
-Applies elsewhere: flushing a logger every N records instead of every line, a game server sending state every few ticks, a worker that checks a cancellation flag every 1,000 iterations.
-Watch out: —
-Seen in ares: `md::CPU::wait()` called `Thread::synchronize()` on every bus wait. It now decrements `cyclesUntilSync` and syncs only when it reaches ≤0, adding `minCyclesBetweenSyncs` each time: 4 CPU cycles for the Mega Drive and Mega CD, 40 for the 32X. The commit notes that the dot renderer gains nothing from syncing more often than about a pixel. `M32X::SH7604::step` uses the same countdown before syncing the two SH-2s with the 68K. 8e94e664c 2021-08 “md: optimize how often we sync the cpu with other components.” · 2380e62c7 2021-08 “md: fix sync to be in terms of cpu cycles” · cbfd7ed27 2022-09 “m32x: unify interpreter/recompiler sync timing”
-
 ### ares-041 — Synchronise only with the party that already orders everyone else
 Lens: concurrency · Source: ares
 Principle: When one component already synchronises with all the others at fine granularity, the other components don't need to sync pairwise among themselves. Point each of them at that hub only. This removes redundant scheduler work without changing the ordering guarantees.
@@ -346,22 +186,6 @@ Applies elsewhere: merging two goroutines that ping-pong on a channel into one l
 Watch out: —
 Seen in ares: On the Famicom, `APU` and the cartridge board `Interface` stop being `Thread`s. Their `tick()` functions, which did `Thread::step(rate()); Thread::synchronize(cpu);`, were deleted, and the CPU now drives `apu.main()` and `cartridge.main()` directly. The commit notes this is only valid because they share one base clock. 265ba002e 2022-12 “fc: merge apu/cpu/cartridge into one cothread”
 
-### ares-044 — Advance straight to the next event instead of ticking
-Lens: algorithms · Source: ares
-Principle: A loop that advances time by one unit and re-checks every counter wastes most of its iterations. Compute how far away the nearest pending event is and advance by that amount in one step. Where per-unit work can't be skipped, run several units in an inner loop before yielding.
-Why it is faster: —
-Applies elsewhere: discrete-event simulators, timer wheels that sleep until the next deadline, tickless kernels, batching audio synthesis per buffer instead of per sample.
-Watch out: —
-Seen in ares: `ng::OPNB::main()` decremented the FM and PCM-A counters and called `step(1)` on every pass. It now computes a `stepDuration`, subtracts it from both counters and calls `step(stepDuration)`. In the WonderSwan's inaccurate mode, `APU::main` runs 128 iterations before calling `step(128)`, and `PPU::main` renders the whole line before a single `step(224+32)`. The commit reports about a 65% speedup. d75c13107 2022-07 “ng: avoid syncing with the YM2610 more than necessary” · 6b70091f6 2022-12 “ws: support pixel inaccuracy mode, for per-scanline PPU and fast APU processing”
-
-### ares-045 — Schedule delayed work in a min-heap of deadlines
-Lens: algorithms · Source: ares
-Principle: To delay actions by known amounts of time, keep them in a fixed-size binary min-heap keyed by deadline. Each step checks only the root, in O(1), and pops entries while they are due. Use a wrap-safe comparison for the counters, and when removing or scanning, touch only the live entries rather than the whole backing array.
-Why it is faster: —
-Applies elsewhere: timers in an event loop such as libuv or Node.js, retry and backoff schedulers, rate limiters, DMA or I/O completion queues in firmware.
-Watch out: —
-Seen in ares: v120r03 added `nall/priority-queue.hpp`, with `step(clocks, callback)` popping while `ge(clock, heap[0].clock)`, where `ge` is `x - y < 0x7fffffff`. `n64::CPU::synchronize` uses it for PI and SI DMA completion, and RSP DMA later re-inserts itself one row at a time (`queue.insert(Queue::RSP_DMA, …)`). `remove()` was changed from `for(auto& entry : heap)` to `for(i < size)`. 8c7bad148 2021-05 “Update to ares v120r03 release.” · bcf9cab22 2022-05 “n64: rework RSP DMA double buffering” · a3a777ef9 2022-04 “nall: optimize priority_queue remove function”
-
 ### ares-046 — Drive subordinate components with catch-up loops instead of threads
 Lens: concurrency · Source: ares
 Principle: When the main component owns the timeline, the others can be plain objects with a time debt. After the main component runs, subtract the elapsed time from each one and call its `main()` in a `while(clock < 0)` loop. There are no coroutine switches, and each component runs in a burst, which is friendly to the cache.
@@ -369,14 +193,6 @@ Why it is faster: —
 Applies elsewhere: fixed-timestep game loops (`while(accumulator >= dt) update()`), deferred-work queues drained after each request, audio mixers rendering whatever a stream is owed.
 Watch out: —
 Seen in ares: In `n64::CPU::synchronize()`, `vi`, `ai`, `rsp` and `rdp` each have a `clock` that is reduced by the CPU's elapsed clocks, followed by `while(rsp.clock < 0) rsp.main();` and so on. v120r03 also scaled everything to a common `clocks = Thread::clock * 2`, so the separate `* 3` scaling for the RSP is gone. 8c7bad148 2021-05 “Update to ares v120r03 release.”
-
-### ares-047 — Invalidate the smallest unit that actually changed
-Lens: jit-interpreters · Source: ares
-Principle: When cached derived data must be discarded because its source changed, throwing away a whole page or pool throws away a lot of still-valid work that then has to be regenerated. Track entries at the granularity of the cache key and clear only the one affected. Doing this safely requires knowing exactly which entries overlap the changed range.
-Why it is faster: —
-Applies elsewhere: CDN purge by URL instead of by domain, cache tags in web frameworks, fine-grained React or Signals re-rendering, incremental builds that rebuild only affected targets.
-Watch out: —
-Seen in ares: The SH-2's `invalidate(address)` used to null the whole pool, `pools[address >> 8] = nullptr`. It now clears `pool(address)->blocks[address >> 1 & 0x7f]`, and a later fix stopped this from allocating empty pools. The N64 CPU got the same change, but it was reverted to whole-pool eviction because overlapping blocks crashed Jet Force Gemini. Single-block eviction is only safe with exact overlap tracking. 657b0c0f5 2021-07 “sh2: invalidate single blocks, not entire pools” · b56dac15e 2021-12 “recompiler: fix page protection on Apple silicon” · 1808e3f50 2022-08 “n64: make the recompiler invalidate single blocks rather than entire pools” · c6ecbe81b 2022-08 “n64: restore old recompiler invalidate behavior”
 
 ### ares-048 — Key a compilation cache by content hash so swapped-in code is reused
 Lens: jit-interpreters · Source: ares
@@ -393,14 +209,6 @@ Why it is faster: —
 Applies elsewhere: chunked content-defined deduplication, per-module rather than per-bundle browser caching, page-level instead of file-level invalidation in a buffer cache.
 Watch out: —
 Seen in ares: The RSP cache used one context and hash per 4 KB of IMEM. It became 16 contexts, each hashing 256 bytes (`context[address >> 8]`, `pools[address >> 8]`), and DMA and IMEM writes now invalidate only their own slice. The commit says this "significantly increases the cache hit ratio" because games use several small microcode programs. f1e36f277 2022-08 “n64: split rsp recompiler cache into 256-byte sized blocks”
-
-### ares-050 — Use a fast, non-cryptographic bulk hash for cache keys
-Lens: algorithms · Source: ares
-Principle: Hashing byte by byte through a CRC routine is slow, and a weak homemade hash collides. A modern SIMD-friendly hash such as XXH3 processes whole blocks at memory speed and has much better distribution. Inline it at the call site.
-Why it is faster: —
-Applies elsewhere: dedup and change detection in backup tools, HTTP ETag generation, hash-table keys for large blobs, asset-pipeline cache keys.
-Watch out: —
-Seen in ares: The RSP replaced a `for(offset : range(256)) crc.input(imem.read<Byte>(...))` loop with `XXH3_64bits(self.imem.data + address, 256)`, using `#define XXH_INLINE_ALL` in `n64.hpp`. The commit calls it "significantly faster and stronger" than CRC32. 9985c693b 2022-08 “n64: use xxh3 instead of crc32 for rsp cache”
 
 ### ares-051 — Two-level lookup: a direct-mapped fast path backed by a content-hashed store, with dirty bits
 Lens: jit-interpreters · Source: ares
@@ -450,22 +258,6 @@ Applies elsewhere: the GOT and PC-relative addressing in PIC code, an interprete
 Watch out: —
 Seen in ares: The N64 recompiler loads `rbx = &ipu.r[0] + 16` and `r13 = &fpu.r[0] + 16`, with `#define Rd dis8(rbx, (Rdn - 16) * 8)`. Later the pointers arrive as function arguments (`Block::execute(self)` calls `code(&ipu.r[16], &self, &fpu.r[16])`), and `Lo`/`Hi` use `offsetof`, replacing `mem64(&cpu.ipu.hi)`. The commit reports code 5–7% smaller, and nearly 40% smaller for the RSP. 340f48d02 2021-05 “Update to ares v120 release.” · d31d5a931 2021-10 “recompiler: avoid encoding absolute data addresses”
 
-### ares-057 — Recognise busy-wait idioms and fast-forward them
-Lens: jit-interpreters · Source: ares
-Principle: Guest code often spins on a branch-to-self while waiting for an interrupt. Emulating each iteration burns host CPU for nothing. Detect the exact idiom at translation time and charge a large amount of time for each pass, so the wait ends in a few iterations.
-Why it is faster: —
-Applies elsewhere: idle-loop detection in OS schedulers, `PAUSE`/`WFE` hints, hypervisors trapping HLT or spin loops (pause-loop exiting), a test harness with a mock clock that skips sleeps.
-Watch out: —
-Seen in ares: The N64 recompiler's emit loop checks `if(unlikely(instruction == 0x1000'ffff))` (`beq zero,zero,-1`). In that case it adds 64 to the clock, first as inline `mov/add/mov` and later as `mov(ra1d, imm32(64)); call(&CPU::step);`. 25771ba20 2021-05 “Update to ares v119r15 release.” · d31d5a931 2021-10 “recompiler: avoid encoding absolute data addresses”
-
-### ares-058 — Map guest operations to single host instructions where they exist
-Lens: jit-interpreters · Source: ares
-Principle: Synthesising a rotate from two shifts and an OR, or rebuilding a carry flag with extra moves, costs several instructions where the host has one. Expose the native operation in the code generator and use it. For flags, let the backend track the add/subtract carry convention so the guest semantics hold on every architecture.
-Why it is faster: —
-Applies elsewhere: `std::rotl` and compiler intrinsics, `__builtin_add_overflow`, using `adc` chains for bignum arithmetic.
-Watch out: —
-Seen in ares: The SH-2's `ROTL`/`ROTR` went from `lshr + shl + or` to `rotl32`/`rotr32`, newly added to `nall/recompiler/generic`. `ADDC`/`SUBC`/`NEGC` dropped the `mov32_to_c/mov32_from_c` helpers, which contained architecture checks, in favour of an explicit add or sub to set the carry and `mov32_f(T, flag_c)` to read it, with sljit tracking the inversion on ARM64. 5e8277b29 2022-12 “recompiler: implement bit rotates” · 6bd57e790 2022-11 “recompiler: simplify carry flag usage”
-
 ### ares-059 — Target a portable JIT IR instead of one host ISA
 Lens: platform · Source: ares
 Principle: A JIT written straight to x86 encodings runs at interpreter speed on every other CPU. Retarget the front end to a small portable low-level IR library (here sljit). Every supported host then gets native code from one codebase. Make guest state a plain POD struct so the generator can address fields by `offsetof`.
@@ -473,30 +265,6 @@ Why it is faster: —
 Applies elsewhere: PCRE2's JIT (also sljit), LLVM ORC or Cranelift as JIT backends, GNU lightning, eBPF JITs.
 Watch out: —
 Seen in ares: `nall/recompiler/amd64` was replaced by `nall/recompiler/generic`, whose `add32`, `cmp32_jump`, `call()` and so on wrap `sljit_emit_*`. All four recompilers were ported, and later commits enabled native ARM64, with MAP_JIT and `jitprotect` toggling. The SH-2 registers had moved into `struct Registers` beforehand so they could be addressed by offset. e88cb48f1 2021-12 “sh2: move registers into POD struct” · a8e35d029 2021-12 “recompiler: rewrite for machine-independence” · b56dac15e 2021-12 “recompiler: fix page protection on Apple silicon”
-
-### ares-060 — Force-inline tiny helpers on hot paths
-Lens: compiler-build · Source: ares
-Principle: The `inline` keyword is only a hint, and compilers often decline it for functions with many call sites or for large callers. For tiny helpers called constantly (byte emitters, bus decoders), force inlining with `__attribute__((always_inline))`. Call overhead disappears, and constant arguments can fold through the body.
-Why it is faster: —
-Applies elsewhere: serialisers writing bytes into a buffer, packet header parsers, the inner kernels of a protocol encoder, accessor functions in an ECS.
-Watch out: —
-Seen in ares: All of `nall/recompiler/amd64`'s `emitter` functions (`byte`, `dword`, `rex`, `modrm`, `sib`) and its encoder instructions became `alwaysinline`, which sped up code generation. The SH-2's `call()` template moved into the header as `alwaysinline`. The Mega Drive's `Bus::read`/`write`/`waitRefresh*` changed from `inline` to `alwaysinline` "as intended". 1e4683fba 2021-07 “nall:: speed up recompiler codegen” · 99ef67b4a 2021-07 “sh2: slight speed up 'call' generation” · 3051af6e2 2022-12 “md: make sure bus functions are always inlined as intended”
-
-### ares-061 — Put small hot functions where the compiler can see them
-Lens: compiler-build · Source: ares
-Principle: A one-line function defined in a separate translation unit can't be inlined without LTO, so every call pays for a call. Profile, then move those bodies into the header (or the class definition) so callers see them. Also pass the dependencies such functions need as parameters instead of reaching through globals.
-Why it is faster: —
-Applies elsewhere: header-only accessors in C++ libraries, `static inline` helpers in C headers, Rust `#[inline]` on cross-crate small functions.
-Watch out: —
-Seen in ares: Profiling found that N64 `InstructionCache::line()`, `Line::hit()` and `Line::read()` were out of line in `icache.cpp`. They moved into `cpu.hpp`. A follow-up moved `step`, `fetch`, `fill` and `writeBack` too, deleted `icache.cpp`, and gave the cache a `CPU& self` instead of using the global `cpu`. f48686729 2022-08 “n64: move some function implementations from icache.cpp to cpu.hpp” · 81e15695c 2022-08 “n64: a little more performance tuning”
-
-### ares-062 — Hoist mode checks out of inner loops with template specialisation
-Lens: branching-fast-paths · Source: ares
-Principle: If a mode flag is constant for a whole loop but tested on every iteration, make it a template parameter and select the instantiation once outside the loop. Each instantiation compiles with the dead branches removed. The same trick turns a small runtime operand into a compile-time constant: generate one specialisation per value and dispatch with a switch once, at decode time.
-Why it is faster: —
-Applies elsewhere: image filters specialised per pixel format, `if constexpr`-specialised serialisers, generating a kernel per data type in numeric libraries.
-Watch out: —
-Seen in ares: In the Mega Drive VDP, `tick()`, `DAC::pixel()` and `output()` became `template<bool h40, bool draw>`. `mainH32` calls `dac.pixels ? blocks<false,true>() : blocks<false,false>()`, which moved 32X Doom to 80–90 fps on the author's machine. The RSP vector ops became `template<u8 e>`, and the recompiler's `callvu(name)` switches over `E` to call `name<0x0>…name<0xf>` instead of passing `e` in a register. b442ef462 2022-12 “md: use templating to reduce if statements in tight inner loops” · 5e2a8f08b 2021-12 “n64: templatize rsp vpu”
 
 ### ares-063 — Model only the cost of a cache, not its contents
 Lens: laziness · Source: ares
@@ -522,14 +290,6 @@ Applies elsewhere: numeric libraries choosing AVX2 or SSE kernels, distributing 
 Watch out: —
 Seen in ares: The global `-msse4.2` was removed from `n64/GNUmakefile`. `Architecture::sse41` is derived from `__SSE4_1__`, `Accuracy::RSP::SISD` includes `!Architecture::sse41`, and `RSP::power()` reports "RSP vectorization disabled". Official builds use `-march=nehalem`, and local builds use `-march=native`. Moving the baseline to x86-64-v2 was reverted because older GCC didn't accept the flag. acd2130a4 2022-04 “n64: fix SIGILL at startup when SSE4.2 is not supported” · 6399a5cd1 2022-04 “nall: sse42 -> sse41” · f7657dca4 2022-07 “desktop-ui: optimize for generic x86-64-v2 rather than nehalem” · 080b53a65 2022-07 “Revert …x86-64-v2…”
 
-### ares-066 — Turn on link-time optimisation by default, and tune it
-Lens: compiler-build · Source: ares
-Principle: In a codebase split into many translation units, the compiler can't inline across them or remove cross-unit overhead. LTO defers code generation to link time so those optimisations happen program-wide. The flavour matters: thin LTO for clang, parallel `-flto=auto` without fat objects for GCC.
-Why it is faster: —
-Applies elsewhere: release builds of browsers, game engines and databases. Rust `lto = "thin"`. Go and Swift whole-module optimisation.
-Watch out: —
-Seen in ares: `nall/GNUmakefile` set `lto = true` for every non-debug build type. Tuning dropped `-fwhole-program` and switched to `-flto=auto -fno-fat-lto-objects` for GCC and `-flto=thin` for clang, which gave the Game Boy core about +10 fps on average. LTO was turned off in desktop-ui for a while and then made the default again: "the difference between barely scraping 50-55fps on 32x core to getting constant 60-70fps". cb9f94ae3 2021-07 “nall: enable lto by default on non-debug builds” · 9c5ecf52c 2022-07 “nall: tweak LTO settings for better performance in compiled builds” · 9aa05bcbe 2022-07 “nall: more LTO tuning” · 4da6316d1 2022-12 “desktop-ui: make LTO default again”
-
 ### ares-067 — Cache compiler output across rebuilds
 Lens: compiler-build · Source: ares
 Principle: Rebuilding unchanged translation units is pure waste. Prefixing the compiler command with a content-hashing compiler cache returns stored objects whenever the preprocessed input and the flags match.
@@ -537,14 +297,6 @@ Why it is faster: —
 Applies elsewhere: ccache or sccache in CI, Bazel and Gradle remote caches, Turborepo and Nx task caching.
 Watch out: —
 Seen in ares: `nall/GNUmakefile` gained `ccache=true`, which prepends `ccache` to `compiler.c/.cpp/.objc/.objcpp`. 36af497fd 2022-09 “nall: add support for ccache”
-
-### ares-068 — Keep a fast approximate implementation beside the exact one, selectable at runtime
-Lens: algorithms · Source: ares
-Principle: An exact, fine-grained model is often several times slower than a coarse model that is good enough for most inputs. Ship both behind a common virtual interface and pick one per session from a setting, not at build time. Patch the coarse model's known failures with narrowly targeted overrides rather than abandoning it.
-Why it is faster: —
-Applies elsewhere: a physics engine with a simplified and an exact solver, a draft and a final quality render, map tiles served at low and high precision, a database with approximate and exact query modes.
-Watch out: —
-Seen in ares: The SNES PPU stopped choosing `ppu-performance` with a `#if defined(PROFILE_PERFORMANCE)`. `PPUBase` now holds an `Implementation*` with virtual `load`/`power`/`serialize` methods, both PPUs are compiled, and a "pixel accurate" setting selects one. The performance renderers for MD, SFC and PCE were deleted and then restored by a revert. The PCE performance VDP sets `renderingCycle` to 128 or 32 instead of 512 for a handful of named games. The WonderSwan gained a "Pixel Accuracy" option that switches to per-scanline rendering. 3be1ced3e 2022-03 “sfc: runtime pixel accurate PPU setting” · dc5ff13b5 2022-02 “ares: remove performance renderers” · c78d931e2 2022-02 “Revert "ares: remove performance renderers"” · 7e48079a4 2022-08 “pce: performance vdp timing overrides” · 6b70091f6 2022-12 “ws: support pixel inaccuracy mode…”
 
 ### ares-069 — Keep a decoded shadow copy, updated on write
 Lens: memory-layout · Source: ares
@@ -570,14 +322,6 @@ Applies elsewhere: Roaring bitmaps, sparse visited-sets in crawlers or graph tra
 Watch out: —
 Seen in ares: The instruction tracer's "do not trace twice" mask was `vector<u08>`, sized `1 << (addressBits-3)`, which broke when the N64 moved to 64-bit addresses. It is now `hashset<VisitMask>`, where `VisitMask{upper = address>>6, u64 mask}` and `visit()` tests and sets `1ull << (address & 0x3f)`. f1b7eb058 2022-10 “debugger: use hashset to track visited addresses”
 
-### ares-072 — Generate lookup tables at startup from the formula
-Lens: lookup-tables · Source: ares
-Principle: Per-sample interpolation needs coefficients that are expensive to compute but fixed. Compute them once into a table when the component is constructed, from the defining formula with normalisation and rounding, so the hot loop is a plain indexed load. Generating the table instead of pasting constants keeps it verifiable.
-Why it is faster: —
-Applies elsewhere: resampler filter kernels, gamma or sRGB tables, CRC tables built at init, window functions for FFTs.
-Watch out: —
-Seen in ares: v114r13 added `SPU::gaussianConstructTable()` for the PS1. It builds a 512-entry kernel from `sin` and `cos` terms, scales it so that the sum is `0x7f80` across each set of four phases, and rounds into `gaussianTable[]`. The SNES DSP's hard-coded constants were replaced by the same kind of generation. 46bba9b79 2020-07 “Update to ares v114r13 release.”
-
 ### ares-073 — Table-driven translation with a likely fast path for the common mode
 Lens: lookup-tables · Source: ares
 Principle: For address or permission translation, index a small precomputed table by the top bits and return it directly in the common mode. Fall into a slower decoder only for the rare mode, behind a `likely()` hint, so the hot path stays one load and one branch that is predicted correctly.
@@ -602,14 +346,6 @@ Applies elsewhere: restoring a VM or container from a snapshot instead of bootin
 Watch out: —
 Seen in ares: The N64 forces RDRAM initialisation to be skipped unless `Accuracy::RDRAM::Broadcasting` is set. When IPL3 reads `RI_SELECT`, `RI::readWord` now calls `cpu.step(17'641'000)`, matching the count register measured on hardware. Without it, Wave Race 64 Shindou froze on the logo. Fast-boot options for PS1 and NGP were added in v114r22 and v114r23. 3212ce014 2021-09 “n64: consume cycles to compensate for skipped RDRAM initialization”
 
-### ares-076 — Skip runtime checks that code-generation context already settles
-Lens: jit-interpreters · Source: ares
-Principle: A code generator knows facts about each instruction it emits, such as what the previous instruction was. When those facts decide a condition, emit only the branch that applies and drop the runtime test. Keep the test only where the context can't decide it, for example at the entry of a block.
-Why it is faster: —
-Applies elsewhere: query planners that drop null checks on NOT NULL columns, template engines that compile out escaping for values already known to be safe, shader specialization on constant uniforms.
-Watch out: —
-Seen in ares: In the SH-2 recompiler, `emitInstruction` used to return a bool. It now returns a `Branch` kind, and `emit` tracks `inDelaySlot = branch == Branch::Slot`. `checkDelaySlot` now starts with `if(!inDelaySlot) return body();`, so it emits the compare-and-jump on `PPM` only after a delayed branch, or on the first instruction of a block, where it is forced on. 8156a7b76 2023-02 “sh2: elide runtime delay slot check when possible”
-
 ### ares-077 — Lazy invalidation with dirty bitmasks and generation counters
 Lens: laziness · Source: ares
 Principle: Don't evict cached entries the moment a write happens. Set a bit in a per-region dirty mask, or bump one global generation number. When a region is next looked up, compare its stored generation and mask and evict only the entries that overlap. Writes become a single OR or increment, and eviction work happens only for regions that are used again.
@@ -617,30 +353,6 @@ Why it is faster: —
 Applies elsewhere: cache-busting by version stamp in web asset pipelines, epoch-based invalidation of memoized selectors, GPU descriptor caches that are marked dirty per binding range.
 Watch out: —
 Seen in ares: `SH2::Recompiler::invalidate(address,size)` used to null one block pointer. It now ORs a 64-bit `mask()` (one bit per 4 bytes) into `pool->dirty`. `pool()` then evicts only blocks whose `[address,size)` overlaps the mask. A cache purge does `generation++`, and pools in the cached area whose generation is stale get cleared when they are next touched. Blocks now record their `size`, so a long write no longer issues two separate invalidations. 241f0e9a3 2023-03 “sh2: precise recompiler block invalidation”
-
-### ares-078 — Deduplicate compiled artifacts by content hash
-Lens: jit-interpreters · Source: ares
-Principle: When derived artifacts are expensive to build and their inputs often come back unchanged after an invalidation, key a secondary cache on a fast hash of the input bytes. A lookup that misses by address but hits by hash reuses the old artifact and skips regeneration.
-Why it is faster: —
-Applies elsewhere: content-addressed build caches (ccache, Bazel), shader pipeline caches keyed by SPIR-V hash, CDN dedup by ETag.
-Watch out: —
-Seen in ares: `SH2::Recompiler::block()` first runs `measure()`, which copies the block's opcodes into `instructions[]` until it reaches a terminal opcode (`isTerminal` comes from the same decoder table). It then computes `XXH3_64bits(...) ^ address` and looks it up in a `hashset<BlockHashPair>` before calling `emit()`. Self-modifying code or code that is reloaded and then rewritten unchanged gets its old block back. TRAPA and SLEEP were reclassified as block terminators so the measured boundaries match. 600964d72 2023-03 “sh2: reuse previously recompiled blocks”
-
-### ares-079 — Invalidate the smallest unit that changed
-Lens: laziness · Source: ares
-Principle: If a write affects one entry, drop that entry and not the container around it. Coarse invalidation throws away valid neighbours, and each one costs a rebuild the next time it is used.
-Why it is faster: —
-Applies elsewhere: per-key cache deletes instead of flushing a namespace, incremental re-layout of one DOM subtree, row-level rather than table-level cache invalidation.
-Watch out: —
-Seen in ares: On every RAM write the PS1 recompiler's `invalidate()` used to do `pools[address >> 8] = nullptr`, which discarded all 64 blocks in the 256-byte page. It now clears only `pool->blocks[address >> 2 & 0x3f]`. 5bcef4741 2024-12 “ps1: invalidate single blocks rather than entire pools (recompiler)”
-
-### ares-080 — One-entry memo for an address translation
-Lens: memory-layout · Source: ares
-Principle: Successive lookups usually land on the same page. Keep the last page number and its translated base, and answer a repeat lookup with a compare and an add. Clear the memo only when the mapping itself changes, not on every data write, so it stays valid for as long as possible.
-Why it is faster: —
-Applies elsewhere: the last-used-segment cache in an allocator, a "current chunk" pointer in a rope or piece table, caching the last DNS or route lookup in a client.
-Watch out: —
-Seen in ares: The N64 recompiler's per-instruction icache timing called `devirtualizeFast(ipu.pc)`, which used to walk the TLB every time. It gained a `DevirtualizeCache{vbase,pbase}`: a hit when `vaddr>>12 == vbase` returns `pbase + (vaddr & 0xfff)`. The cache was first cleared on every mapped store, and is now cleared only in `TLBWI`/`TLBWR`. A follow-up removed a redundant `pbase` store from the miss path and marked the function `alwaysinline`. 7f09b67df 2023-06 “n64: speed up recompiler icache lookup” · 345a7cb89 2023-06 “n64: clear devirtualize cache on TLB changes rather than memory writes” · 878419da0 2023-06 “n64: avoid unnecessary pbase writes in devirtualizeFast and hint as alwaysinline”
 
 ### ares-081 — Frequency-counted front cache before a linear search
 Lens: memory-layout · Source: ares
@@ -665,14 +377,6 @@ Why it is faster: —
 Applies elsewhere: batch APIs (`writev`, bulk inserts), event handlers that drain an entire queue per wakeup, `requestAnimationFrame` callbacks that process all queued updates.
 Watch out: —
 Seen in ares: `CPU::synchronize()` used to run `while(vi.clock < 0) vi.main();` for each of VI, AI, RSP, RDP and PIF. Each `main()` now contains its own `while(Thread::clock < 0)` loop and is called once. The per-frame loop also moved from `System::run` into `CPU::main`, which removed another call layer. e142c3be5 2023-06 “n64: slight performance boost by moving exit logic to components rather than system”
-
-### ares-084 — Detect busy-wait loops and fast-forward them
-Lens: jit-interpreters · Source: ares
-Principle: A loop that only spins waiting for an external event does no useful work per iteration. Recognize the pattern when generating or analysing code, such as a branch or jump to itself, and advance time by a large step per iteration. The event then arrives after far fewer iterations.
-Why it is faster: —
-Applies elsewhere: replacing spin-polls with blocking waits, hypervisors trapping PAUSE/WFI to deschedule a vCPU, test harnesses that skip virtual time to the next timer when every task is idle.
-Watch out: —
-Seen in ares: The N64 recompiler already treated `beq 0,0,<pc>` (`0x1000ffff`) as an idle loop and emitted `step(64*2)`. It now also matches `j <pc>`, built as `2<<26 | vaddr>>2`. The commit reports that about half of roughly 60 games used beq and a quarter used j. The match had to use the virtual address, not the physical one, and `emit` now advances `vaddr` along with `address`. 0130187f8 2023-08 “n64: detect idle loops using jump instruction” · 3fd03e7a3 2023-08 “n64: improve idle loop detection” · 8574a5879 2023-08 “n64: advance virtual address in recompiler”
 
 ### ares-085 — Test the steady-state case first and mark it likely
 Lens: branching-fast-paths · Source: ares
@@ -738,14 +442,6 @@ Applies elsewhere: inlining bounds or tag checks into bytecode JIT output, repla
 Watch out: —
 Seen in ares: `CPU::instructionEpilogue` held a 7-case `branch.state` switch. This was replaced by a `Pipeline{pc,nextpc,state,nstate}` that the recompiler updates with inline `mov`/`add`/`test` and exits on `jumpEpilog(flag_nz)`. The JIT was then restricted to code running from the icache, and the epilogue call was removed: the icache is simulated by a `jitFetch` call once per 32-byte line, plus an inline `step(2)`. Blocks whose icache is not coherent return `nullptr` and run interpreted. 12f0d0470 2024-08 “n64: remove branch state machine from epilogue (#1598)” · f43da416f 2024-09 “n64: refactor devirtualize and memory ops, force JIT only with instruction cache (#1635)” · 863593ed7 2024-10 “n64: remove call to epilogue function from the jit (#1663)”
 
-### ares-093 — Hoist configuration checks into template parameters
-Lens: compiler-build · Source: ares
-Principle: A mode flag that is fixed for a whole session but tested inside the innermost loop should become a compile-time parameter. Instantiate both versions and choose one at startup. Each version then compiles with the dead branches removed.
-Why it is faster: —
-Applies elsewhere: selecting a SIMD or scalar kernel once through a function pointer, React components split by mode instead of branching per element, specializing serializers by schema version.
-Watch out: —
-Seen in ares: The PC Engine VDP's per-pixel loop called `Model::SuperGrafx()` several times per pixel. `VDP::main` and `step` became `template<bool supergrafx>`, and `power()` creates the thread with `&VDP::main<true>` or `<false>`. The commit describes this as a "significant performance boost" in pixel-accuracy mode. 69c20711f 2025-01 “pce: evaluate SuperGrafx check at power-on time in the VDP”
-
 ### ares-094 — Batch ticks with compile-time counts and unswitch loops
 Lens: compiler-build · Source: ares
 Principle: If an inner routine runs N times in a row with the same enable flags, pass N and the per-instance constants as template arguments. Test the flags once outside the batch and loop inside the callee. The compiler can then unroll the loop and drop impossible cases, such as features a given instance never has.
@@ -753,14 +449,6 @@ Why it is faster: —
 Applies elsewhere: audio DSP processing whole blocks instead of single samples, per-channel specialized mixers, image filters templated on the channel count.
 Watch out: —
 Seen in ares: The PC Engine PSG called `frame()` 64 times, and each call ran `channel[C].run()`, which checked `io.enable` and `noiseEnable` every tick. It now calls `frame<64>()`, tests `io.enable` once per channel, and calls `run<index, step>()`. That loops `step` times and evaluates the noise path only when `index >= 4`. The `io.output` field was removed and samples are returned directly. 6cc9f5a41 2025-01 “pce: reduce per-iteration conditional statements in psg”
-
-### ares-095 — Advance counters in closed form instead of tick by tick
-Lens: algorithms · Source: ares
-Principle: A counter incremented once per tick with threshold checks can be advanced by k ticks at once. Divide to get the number of increments, add them, and detect overflow or match events by comparing the old and new values. Per-tick loops become constant time.
-Why it is faster: —
-Applies elsewhere: computing elapsed timer periods from wall-clock deltas after sleep, token-bucket refill by elapsed time, accruing interest across many days in one step.
-Watch out: —
-Seen in ares: `M32X::SH7604::step` looped `while(--cycles) { frt.run(); wdt.run(); }`. `FRT::run(cycles)` now computes `increments = counter / frequency` and does `frc += increments`. It sets `ovf` from `frc < prevFrc` and the compare-match flags from `u32(ocra - 1 - prevFrc) < increments`. `WDT::run` is similar. ab40ecbb9 2025-02 “md: slight performance boost with loop free 32x timers”
 
 ### ares-096 — Compute small calendar facts arithmetically
 Lens: algorithms · Source: ares
@@ -778,21 +466,13 @@ Applies elsewhere: keeping timestamps in the units the scheduler compares, stori
 Watch out: —
 Seen in ares: `CPU::synchronize()` computed `clocks = Thread::clock * 2` on every sync. The CPU now counts system-rate clocks directly, and every `step(n)` site became `step(n * 2)` (icache, dcache, multiply and divide timings), so the multiply in the sync path is gone. ffcce5823 2023-08 “n64: track cpu clocks at system rate”
 
-### ares-098 — Keep JIT code close to the executable
-Lens: platform · Source: ares
-Principle: Branches between generated code and the host binary predict and encode best when the two are within short range of each other: about 128 MiB for direct branches on ARM64, and similar limits for branch predictors. Reserve the code cache early in a static section, or allocate it at the top of `main` before the address space fills up. Keep it small, keep it alive across resets, and move large tables to the heap so the binary's own data section doesn't push the cache out of range.
-Why it is faster: —
-Applies elsewhere: JavaScript engines reserving code space near the binary, `-mcmodel` and trampoline decisions in native linkers, placing hot shared libraries near each other.
-Watch out: —
-Seen in ares: The macOS code cache, which is dynamic for security reasons, was allocated early in `nall::main`. That was then done on all platforms, with the static `fixedBuffer` aligned to 64 KiB and `memory::protect` checked, falling back to dynamic allocation. 32X resets stopped releasing the fixed allocator, which had pushed the SH-2s onto distant fallback allocations. Finally, the cache shrank from 128 to 64 MiB (CPU 63 MiB, RSP 1 MiB), and the `Pool* pools[1 << 21]`/`[1 << 24]` arrays became heap `vector`s. f396a9cf6 2023-08 “recompiler: allocate code cache early in main” · 4b3b78b77 2023-09 “recompiler: more robust code cache allocation (#1242)” · 07c320e55 2023-09 “32x: maintain code cache allocation across resets (#1243)” · e808d2c5a 2025-01 “recompiler: code cache compaction (#1755)”
-
 ### ares-099 — Reserve only what was used, and zero on demand
 Lens: allocation · Source: ares
 Principle: If a producer asks for a worst-case buffer but writes less, give the unused tail back to the bump allocator so allocations stay dense. Don't zero the whole arena on every flush. Zero each small structure when it is created.
 Why it is faster: —
 Applies elsewhere: arena allocators that shrink the last allocation, `calloc`-free pools that initialize objects on acquire, growable buffers that trim after serialization.
 Watch out: —
-Seen in ares: sljit asks for one oversized executable allocation per block. The allocator now reserves only the bytes actually emitted, which removes dead space between blocks. Code cache flushes no longer `release(bump_allocator::zero_fill)` the whole 64 MiB. Instead, the N64, PS1 and SH-2 `pool()` functions do `*pool = {}` on allocation. 8ed4af8b5 2023-09 “recompiler: avoid overallocation in code buffer (#1247)”
+Seen in ares: ljit asks for one oversized executable allocation per block. The allocator now reserves only the bytes actually emitted, which removes dead space between blocks. Code cache flushes no longer `release(bump_allocator::zero_fill)` the whole 64 MiB. Instead, the N64, PS1 and SH-2 `pool()` functions do `*pool = {}` on allocation. 8ed4af8b5 2023-09 “recompiler: avoid overallocation in code buffer (#1247)”
 
 ### ares-100 — Reference-count nested protection toggles
 Lens: platform · Source: ares
@@ -809,22 +489,6 @@ Why it is faster: —
 Applies elsewhere: dynamic tracing (eBPF or DTrace probes patched in on demand), feature-flagged logging compiled out of hot paths, re-JITting with profiling counters only during warm-up.
 Watch out: —
 Seen in ares: The SH-2, N64 CPU/RSP and PS1 recompilers gained `callInstructionPrologue`, which emits a `call(&...::instructionPrologue)` per instruction only when the tracer is active. `Tracer::setToggle` registers a callback that flushes the recompiler when tracing is turned on or off. cd11421d7 2023-11 “recompiler: enable instruction tracing w/recompilers (#1301)”
-
-### ares-102 — Snapshot under the lock, work outside it
-Lens: concurrency · Source: ares
-Principle: If a consumer thread holds a shared lock while it processes a large structure, the producer stalls for that whole time. Copy just the needed region while holding the lock, release it, and let the consumer work from the private copy.
-Why it is faster: —
-Applies elsewhere: copy-on-read config snapshots, double-buffered render state, RCU-style readers.
-Watch out: —
-Seen in ares: The PS1 `GPU::Blitter::refresh()`, which can run on the screen thread, held `vram.mutex` while converting every pixel. `queue()` now copies only the display rectangle row by row into the blitter's own 1 MiB `vram` under the lock. `refresh()` reads that copy without locking. 0af2690e5 2024-04 “ps1: blitter now uses a copy of the display area”
-
-### ares-103 — Wait on a condition variable instead of sleep-polling
-Lens: concurrency · Source: ares
-Principle: A loop that sleeps for 1 µs and checks a flag wakes up constantly, burns CPU and still adds latency. Block on a condition variable that the producer signals, with a timeout as a safety net against deadlock.
-Why it is faster: —
-Applies elsewhere: worker queues, render threads that wait for a frame, any `while(!ready) sleep(1)` in application code.
-Watch out: —
-Seen in ares: `Screen::main` did `usleep(1); if(_frame) refresh();`. It now calls `_frameCondition.wait_for(lock, 10ms, [&]{ return _frame.load(); })`, and `Screen::frame()` calls `notify_one()` in threaded mode. b145f0f00 2024-04 “screen: use condition_variable rather than polling for next frame”
 
 ### ares-104 — Sleep for the computed drain time instead of spinning
 Lens: io · Source: ares
@@ -898,14 +562,6 @@ Applies elsewhere: rendering UI at logical resolution and letting the compositor
 Watch out: —
 Seen in ares: The Mega Drive VDP's `pixels()` and `frame()` used to write rows at `y * 2 * 1415` and set the screen to `visibleHeight() * 2` even for progressive content. They now use `yScale = latch.interlace ? 2 : 1`, with `setScale(0.25, 1.0 / yScale)`. 2d714d1a9 2025-01 “md: don't line-double non-interlaced content”
 
-### ares-113 — Choose the fast path while generating code, not while running it
-Lens: jit-interpreters · Source: ares
-Principle: If a code generator already knows a property of an instruction, such as whether it sits in a branch delay slot, it should emit only the matching variant. Testing that property in the generated code means paying a compare and branch on every execution for an answer that never changes.
-Why it is faster: —
-Applies elsewhere: query compilers that emit separate loops for nullable and non-nullable columns; shader compilers that build permutations instead of branching on uniforms.
-Watch out: —
-Seen in ares: The RSP JIT first added an inline epilogue that tested `branch.state` at runtime and called the C++ `instructionEpilogue` only when the state was nonzero. The next commit removed that runtime test: the emitter tracks `delaySlot = hasBranched` itself and emits the legacy call only for real delay slots. Ordinary instructions get a straight-line clock add and PC store. 3e913fda5 2026-04 “n64: add toggled fast RSP instruction epilogue path” · a3d75ad5d 2026-04 “n64: specialize RSP JIT epilogue by delay-slot position”
-
 ### ares-114 — Accumulate cycle counts and flush only where they can be observed
 Lens: laziness · Source: ares
 Principle: Timing only has to be correct at points where something else can see it. Sum the fixed costs of straight-line work at compile time and write the total once, just before the next call, exit or slow path. That removes a memory update, and often a call, from every instruction.
@@ -913,110 +569,6 @@ Why it is faster: —
 Applies elsewhere: per-thread counters that are merged into a global counter in batches; buffered metrics emitters; deferred reference-count updates.
 Watch out: —
 Seen in ares: The RSP JIT keeps a compile-time `deferredClocks` and calls `emitClockFlush` only before opcodes for which `instructionMayCallf()` is true, on halt exits and at block end. A later commit drops LH/LW/SH/SW and VU ops from that list, and slow paths now flush the portion they need through `slowPathFlushedClocks`. The CPU JIT got the same rule: `if(hasBranched || info.branch() || info.jitMayCallf()) flushDeferred();`. 1f06bbc15 2026-04 “n64: batch fixed RSP JIT clocks between call sites” · 44ab78ade 2026-04 “n64: defer RSP JIT clock flushes to slow paths” · 9e20c21b3 2026-04 “n64: avoid VU preflush in RSP callf gate” · 4ed8a7792 2026-04 “n64: flush deferred CPU cycles only on branch/helper opcodes”
-
-### ares-115 — Inline the common case and move rare cases out of line
-Lens: jit-interpreters · Source: ares
-Principle: Emit the frequent, simple case (here an aligned memory access) inline as a few host instructions, followed by a single conditional jump to out-of-line code for the rare case. The hot path stays short and falls straight through, and the expensive generic helper runs only when it is actually needed.
-Why it is faster: —
-Applies elsewhere: inline caches in JS engines; fast-path allocation in GCs (bump the pointer inline, call the runtime on overflow); `__builtin_expect` together with cold sections.
-Watch out: —
-Seen in ares: Scalar RSP loads and stores used to `callf(&RSP::LH, ...)`. Now the JIT computes `(rs+imm)&0xfff`, loads straight from DMEM and byte-swaps (`rev32_s16`). Only for halfword and word accesses does it test the low address bits, and a misaligned address goes to `deferSlowPath(rare)`, which is emitted after the block body. Byte ops have no slow path. c88d2eba7 2026-04 “n64: JIT scalar RSP DMEM ops with deferred fallbacks”
-
-### ares-116 — Generate no code for results that are thrown away
-Lens: jit-interpreters · Source: ares
-Principle: On architectures with a hardwired zero register, an instruction that writes to it has no effect. The code generator can skip such instructions entirely. That is cheaper than computing the result and then writing zero back after every instruction to undo it.
-Why it is faster: —
-Applies elsewhere: dead-store elimination in compilers; skipping work whose output goes to `/dev/null`.
-Watch out: —
-Seen in ares: The RSP JIT used to emit `mov32(mem(R0), imm(0))` after every op that defined a register. Now each ALU case starts with `if(!Rtn) return 0;`. Helpers that have side effects still run, and they guard the write themselves with `if(&rt != &ipu.r[0])`. a4ac042f2 2026-04 “n64: skip R0 writes in RSP JIT paths”
-
-### ares-117 — Fold operations whose inputs are known when the code is compiled
-Lens: jit-interpreters · Source: ares
-Principle: If an operand is the zero register, or both operands are the same register, a compare or ALU op has a known outcome. Emit an immediate move or an unconditional branch decision in its place. This removes loads, compares and conditional jumps from the generated code.
-Why it is faster: —
-Applies elsewhere: peephole optimizers; SQL planners that fold `WHERE 1=1`; template engines that pre-render static fragments.
-Watch out: —
-Seen in ares: `BEQ r,r` becomes `emitKnownConditionalTake(1)`, and `BNE r,r` becomes not-taken. `ADDIU rt,r0,imm` becomes `mov32(mem(Rt), imm(i16))`, and a store from `r0` uses an immediate 0 in place of a register load. 26d5ac3a8 2026-04 “n64: specialize R0 source propagation in RSP JIT”
-
-### ares-118 — Propagate constants through a block to prove addresses and alignment
-Lens: jit-interpreters · Source: ares
-Principle: Track which registers hold values that are known at compile time as instructions are emitted. When a memory op's base register is known, the effective address becomes a constant. Its range and alignment can then be checked during compilation, and the runtime arithmetic and bounds checks disappear.
-Why it is faster: —
-Applies elsewhere: sparse conditional constant propagation in LLVM; partial evaluation; GPU drivers that specialize shaders on constant buffer values.
-Watch out: —
-Seen in ares: `ConstRegs::track()` follows LUI/ORI/ADDIU/shift/logic results, with a bit mask of which registers are known. Vector loads and stores then check `constRegs.has(Rsn)`. With a known address they bounds-check it during compilation (`address > 0x0ff7`), and the LRV/LPV/LUV helpers receive a precomputed DMEM pointer and size in place of a lookup-table pointer. cbf9f79e5 2026-04 “n64: add constant tracking in RSP JIT” · fef2ab490 2026-04 “n64: in RSP, add JIT for lqv/sqv” · 219dff38a 2026-04 “n64: refactor load/store opcodes to make better use of constant addresses”
-
-### ares-119 — Keep a hot base pointer in a callee-saved register
-Lens: jit-interpreters · Source: ares
-Principle: A pointer that almost every memory op needs should stay in a callee-saved register for the whole block. Calls to helpers then cannot clobber it, so there is nothing to reload. It also replaces the bookkeeping a caching scheme needs to track whether the pointer is still valid.
-Why it is faster: —
-Applies elsewhere: a reserved register for the heap or Wasm memory base in JITs; the TLS pointer in a fixed register; `this` held in a register in interpreter loops.
-Watch out: —
-Seen in ares: A lazy scheme that kept `dmem.data` in scratch `reg(2)` and invalidated it after every possible call was replaced by `beginFunction(3, 4)` plus one `mov64(DmemReg /*sreg(3)*/, ...)` in the prologue. Supporting this took a nall change that lets a recompiler declare how many saved registers it uses. 716d41735 2026-04 “n64: use sreg(3) in RSP JIT to hold the DMEM pointer”
-
-### ares-120 — Emit trivial operations inline instead of calling a helper
-Lens: jit-interpreters · Source: ares
-Principle: A call to a helper costs argument setup, saving and restoring registers, and a call/return pair. For an operation that is only two or three stores, that overhead is several times the work. Emitting those stores inline removes it.
-Why it is faster: —
-Applies elsewhere: compiler intrinsics for `memcpy` of small fixed sizes; inlining getters and setters.
-Watch out: —
-Seen in ares: J/JAL/JR/JALR used to call `RSP::J` and similar. They are now emitted as `mov32(BranchReg(nextpc), imm(...)); mov32(BranchReg(nstate), imm(DelaySlot|EndBlock));`, with the link value masked inline. 2585b4667 2026-04 “n64: inline simple RSP JIT jump opcodes”
-
-### ares-121 — Use addresses known at compile time as immediates
-Lens: jit-interpreters · Source: ares
-Principle: Inside a straight-line block, each instruction's address and the address after it are known when the code is generated. Storing them as immediates replaces a read-modify-write of runtime PC fields after every instruction with a single store, emitted only where the PC must be visible.
-Why it is faster: —
-Applies elsewhere: position-dependent code with absolute addresses; precomputing offsets in a code generator instead of counting at runtime.
-Watch out: —
-Seen in ares: The RSP JIT now updates `branch.pc/nextpc` only inside delay slots. A commit writes `mov32(mem(IpuReg(pc)), imm(nextpc))`, where `nextpc` is `u12(address + 4)` computed by the emitter. 6e7cf80f6 2026-04 “n64: virtualize RSP JIT block PC progression”
-
-### ares-122 — Select with masks or conditional moves instead of branching
-Lens: branching-fast-paths · Source: ares
-Principle: When a result is one of two values chosen by a data-dependent flag, compute both and pick one with a conditional move or a mask (`-flag & (a^b) ^ b`). Guest branches are hard for the host to predict, and this removes the host branch and any misprediction.
-Why it is faster: —
-Applies elsewhere: branch-free `min`/`max`; constant-time crypto selects; SIMD blend in place of per-lane `if`.
-Watch out: —
-Seen in ares: For conditional branches the CPU JIT now computes both the fall-through and the taken target and emits `cmov64(reg(2), reg(1), reg(0), flag_z)` for `nextpc`, with a second `cmov32` for the pipeline state. The FPU compares use `fcmp64` + `cmov32` in place of a jump-and-set sequence. The RSP JIT turns the flag into a mask with `sub32(reg(0), imm(0), reg(0))`, where it used to use xor followed by add -1. 3198e0e88 2026-05 “n64: in CPU JIT, rewrite branches to use branchless code” · 28f05b029 2026-04 “n64: in FPU JIT, optimize comparisons” · 6e7cf80f6 2026-04 “n64: virtualize RSP JIT block PC progression”
-
-### ares-123 — Emit per-instruction checks only after instructions that can trip them
-Lens: jit-interpreters · Source: ares
-Principle: An exit check after every instruction ("did we halt?", "must the block end?") is wasted on instructions that cannot change that condition. Decide statically which opcodes can, and emit the check only after those.
-Why it is faster: —
-Applies elsewhere: GC safepoint polls placed only at loop back-edges and calls; cancellation checks at I/O boundaries rather than per item.
-Watch out: —
-Seen in ares: The RSP JIT emits the `status.halted` test only when `instructionMaySetHalted()` is true, which covers BREAK and MTC0 to SP_STATUS. The CPU JIT emits its EndBlock test and pipeline commit only when `firstInstruction || delaySlot || info.likelyBranch() || emitCallfEmitted`. f43063803 2026-04 “n64: gate RSP halted checks to relevant opcodes” · 105e8da92 2026-05 “n64: in CPU JIT, make epilogue code conditional in fast paths”
-
-### ares-124 — Materialize bookkeeping state only for code that reads it
-Lens: laziness · Source: ares
-Principle: Pipeline bookkeeping (current PC, next PC, state flags) is only read by branches and by slow-path helpers. Set it up lazily, the first time such a consumer appears, and linear instructions skip those stores completely.
-Why it is faster: —
-Applies elsewhere: building a stack trace only when an exception is actually logged; lazily filling debug info.
-Watch out: —
-Seen in ares: `setupPipeline()` is idempotent (`emitPipelineSetupDone`) and is called only for `info.branch()`, for a needed commit, or before a slow path. It writes JIT-time immediates when the PC is known. Callf setup in the CPU JIT also moved to the paths that actually emit a helper call. bb75c2f05 2026-05 “n64: in CPU JIT, do not emit pipeline prologue for linear instructions” · d91f838e3 2026-04 “n64: lazily emit callf setup in CPU JIT”
-
-### ares-125 — Key compiled code on the mode bits it was specialized for
-Lens: jit-interpreters · Source: ares
-Principle: Fold the CPU modes that affect code generation (privilege level, address width, FPU trap enables and so on) into a compact state key, and store it with each compiled block. Each block can then be specialized for exactly one mode with no runtime mode checks, and a mode change simply picks a different block.
-Why it is faster: —
-Applies elsewhere: JS engines' type-specialized code guarded by hidden-class IDs; shader caches keyed by pipeline state.
-Watch out: —
-Seen in ares: The CPU JIT replaced 256-byte "pools" (and whole-pool eviction) with 4 KiB `Section`s of per-word `Block*` chains. `block()` walks the chain for a matching `stateKey` and `vaddrPage`. The load emitter reads `emitStateKey` to choose 32-bit or 64-bit address checks during compilation. 6d6c5d5fa 2026-04 “n64: refactor CPU JIT to introduce 4K sections and state key” · 9e6be60b9 2026-04 “n64: implement all aligned load opcodes in JIT”
-
-### ares-126 — Track invalidation at fine granularity to avoid throwing away hot code
-Lens: jit-interpreters · Source: ares
-Principle: Coarse invalidation discards compiled code whenever any nearby data is written, even data that holds no code. Record which small lines actually contain compiled instructions, and invalidate only when one of those lines is written. Code that shares a page with data then survives.
-Why it is faster: —
-Applies elsewhere: fine-grained cache tags in CDNs; per-row rather than per-table cache invalidation.
-Watch out: —
-Seen in ares: Each 4 KiB section now carries `u8 lineBlocks[128]`, one entry per 32-byte line. `invalidateRange` walks only the lines a write touches, and marks the section dirty only if one of them holds code. Stores call `invalidateRange(address, Size)` once, where they used to make two separate calls. 68134837d 2026-05 “n64: avoid excessive JIT trashing by reducing the 4K section granularity”
-
-### ares-127 — Grow compiled regions across conditional branches
-Lens: jit-interpreters · Source: ares
-Principle: Ending a block at every branch sends execution back to the dispatcher on each one. Let a block continue through conditional branches, and register the internal branch targets as extra entry points into the same host function. Hot loops then stay inside compiled code.
-Why it is faster: —
-Applies elsewhere: trace and superblock formation in JITs; region-based compilation in HotSpot.
-Watch out: —
-Seen in ares: A first attempt added lazily backpatched links between blocks within a section, guarded by dirty, budget and queue checks. A month later blocks were extended through branches: a planning prepass builds the instruction window, and `emitAliasAddresses` publishes the internal targets. The linking code was then removed as "not useful anymore". 70f1cf07c 2026-04 “n64: add safe intra-section JIT block linking” · 49af8ab6a 2026-05 “n64: in CPU JIT, blocks now extend through branches”
 
 ### ares-128 — Pack the valid flag into the tag word
 Lens: memory-layout · Source: ares
@@ -1050,14 +602,6 @@ Applies elsewhere: storing data in network byte order so it can be sent without 
 Watch out: —
 Seen in ares: The FPU's flag/enable/cause records used to be structs of `n1` fields. They are now `n8 data` words whose bit indices follow MXCSR on x86-64 and FPSR on ARM64 (selected by `#if ARCHITECTURE_ARM64`). After a host FP op the JIT tests `fallbackMask` (enabled traps, denormal, and flags that can't be passed through), then executes `or8(cause, ..., hostflags & stickyMask)`. 86fa83fc2 2026-04 “n64: in FPU JIT, implement passthrough of flag bits from host processor”
 
-### ares-132 — Run each component for a bounded budget before synchronizing
-Lens: concurrency · Source: ares
-Principle: Synchronizing with other emulated components after every instruction costs a context switch each time. Compute how far a component can safely run, bounded by the next scheduled event, the next timer interrupt and a fixed cap. Synchronize only when that budget is used up.
-Why it is faster: —
-Applies elsewhere: time-sliced schedulers with quantum = min(slice, next timer); batching event-loop work up to the next deadline.
-Watch out: —
-Seen in ares: `CPU::instruction()` now returns whether to synchronize. On the JIT path the budget is recomputed only when `Thread::clock >= jitClockTarget`, as `min(JitInterleaving, timerDelta, queueDelta)`. `Accuracy::CPU::JitInterleaving` is a constexpr tuning knob. 8b4f1fa16 2026-05 “n64: CPU now has configurable interleaving with the rest of the hardware”
-
 ### ares-133 — Make debugging hooks cost nothing where no breakpoint is set
 Lens: jit-interpreters · Source: ares
 Principle: Having a debugger attached should not slow down code that has no breakpoint. End compiled blocks only at the addresses that actually have breakpoints. Single-instruction compilation is then needed only where it matters, not everywhere.
@@ -1074,14 +618,6 @@ Applies elsewhere: SSA phi elimination ("swap problem"); register allocators' pa
 Watch out: —
 Seen in ares: `callf` in `nall/recompiler/generic/encoder-calls.hpp` accepts `reg` arguments, resolves move dependencies and breaks cycles with a scratch register. RSP vector fast paths use it to pass computed DMEM pointers and sizes in registers. 4c4c5460b 2026-04 “nall: add support for register arguments to callf”
 
-### ares-135 — Replace special-case scalar paths with one SIMD path and shuffle tables
-Lens: simd · Source: ares
-Principle: Data-dependent byte permutations can be handled by a single vector shuffle driven by a precomputed control table indexed by the varying parameter. This replaces per-case scalar code and leaves one branch-free kernel for every case.
-Why it is faster: —
-Applies elsewhere: `pshufb`-based UTF-8 validation and base64 codecs; table-driven SIMD string unpacking.
-Watch out: —
-Seen in ares: LUV/LPV/SUV/SPV dropped their `E==0` special cases and always call SIMD helpers with a pointer into `alignas(16) simdLHVSource[16][8]`, `simdSHVSource[16][32]`. A new `mov128` encoder helper copies 16 bytes with one SIMD load/store pair. 59a0a898e 2026-04 “n64: add LHV/SHV in RSP JIT, and refactor LUV/LPV/SUV/SPV to always use SIMD” · e3f4d6dc0 2026-04 “nall: add mov128 and mem0 for absolute addressing”
-
 ### ares-136 — Turn per-access timing calls into a counter add
 Lens: laziness · Source: ares
 Principle: Inside compiled code, a full timing step on every bus access can trigger synchronization in the middle of a block. Accumulate the cycles in a plain counter, and apply them all at once when the block ends.
@@ -1089,14 +625,6 @@ Why it is faster: —
 Applies elsewhere: batched accounting in rate limiters; coalescing writes to a shared counter.
 Watch out: —
 Seen in ares: 32X bus and I/O paths now call `internalStep(n)`. When the SH-2 recompiler is enabled this is `regs.CCR += clocks`; otherwise it calls `step(clocks)` as before. 048d0e331 2025-02 “md: add internalStep function for 32x recompiler”
-
-### ares-137 — Strip diagnostic counters out of the hot path once tuning is done
-Lens: other · Source: ares
-Principle: Counters that are incremented in the dispatcher and in generated code cost memory traffic and code size on every block. They are useful while tuning; afterwards, removing them shrinks the hot path.
-Why it is faster: —
-Applies elsewhere: compiling out debug metrics in release builds; sampling profilers in place of per-call counters.
-Watch out: —
-Seen in ares: Two days after adding detailed link and lookup metrics (`linkAbortDirty`, `lookupSteps`, ...), the CPU JIT removed about 200 lines of counters and reporting. That also removed a duplicated state-commit emission. 6b88fdfbb 2026-04 “n64: remove CPU JIT metrics instrumentation”
 
 ### ares-138 — Overlap work and wait only when its result is consumed
 Lens: concurrency · Source: ares
@@ -1146,14 +674,6 @@ Applies elsewhere: seeking a PRNG with jump-ahead; computing calendar dates arit
 Watch out: —
 Seen in ares: On first boot the N64 cartridge RTC was initialized to the epoch and then `advance()`d by about 1.7 billion seconds. It now encodes `localtime(time(0))` straight into RAM and advances only when restoring a saved timestamp. e6130f66e 2026-08 “n64: speed up first boot of games with RTC”
 
-### ares-144 — Compare through views instead of building temporaries
-Lens: allocation · Source: ares
-Principle: Converting a view to an owning string just to compare it allocates and copies for nothing. Comparing the view directly avoids both.
-Why it is faster: —
-Applies elsewhere: `std::string_view` keys with heterogeneous lookup; Rust `&str` comparisons.
-Watch out: —
-Seen in ares: The Sufami Turbo signature check changed from `string(romSignature) == sufamiSignature` to `romSignature == sufamiSignature`. 3a46652b1 2025-04 “[SNES] Remove unnecessary additional string allocation”
-
 ### ares-145 — Sort once at construction rather than at every use
 Lens: algorithms · Source: ares
 Principle: If a collection does not change after it is built, sort it once when it is created. Every later reader then sees sorted data without repeating the sort.
@@ -1161,14 +681,6 @@ Why it is faster: —
 Applies elsewhere: materialized sorted indexes; sorting configuration lists at load time.
 Watch out: —
 Seen in ares: `Emulator::construct()` ends with `std::sort(emulators..., emuComparer)`. The sorts in the emulator and firmware settings panels were removed. 88bd79842 2026-01 “Sort once when vector is created”
-
-### ares-146 — Let the compiler inline small, hot handlers
-Lens: compiler-build · Source: ares
-Principle: Forcing tiny instruction handlers out of line adds a call and return to each execution and blocks optimization across the call. Removing the attribute lets the compiler inline them.
-Why it is faster: —
-Applies elsewhere: auditing stale `__attribute__((noinline))` left over from debugging.
-Watch out: —
-Seen in ares: SH-2 `MOVWI`, `MOVLI` and `MOVA` each consist of a PC computation and one read, and all three had `NALL_NOINLINE`. The commit removed it. ed1e34c74 2025-04 “remove errant NALL_NOINLINE macro from SH2 instructions”
 
 ### ares-147 — Align context-save buffers for the widest stores used
 Lens: memory-layout · Source: ares
@@ -1218,14 +730,6 @@ Applies elsewhere: kernel timer wheels and heaps; TCP sequence-number comparison
 Watch out: —
 Seen in ares: `priority_queue<T[Size]>` stores `{clock, event, valid}` entries. Removing a specific event just clears its `valid` flag instead of restructuring the heap. `timeToNextEvent()` gives the JIT its run budget. current code: nall/nall/priority-queue.hpp
 
-### ares-153 — Bump allocation for generated code
-Lens: allocation · Source: ares
-Principle: Generated code is almost never freed individually. A bump pointer gives O(1) allocation, and resetting the pointer frees everything at once. Variable-size blocks can be allocated before their size is known and then reserved once it is.
-Why it is faster: —
-Applies elsewhere: arena allocators per request or per frame; compiler AST arenas.
-Watch out: —
-Seen in ares: `bump_allocator::acquire()` returns `_memory + _offset` for a block of unknown size, `reserve(size)` commits it, and `release()` resets the offset to zero. The executable backing buffer is a static 64 MiB array aligned to 64 KiB and mprotected once, with no runtime mapping, on every platform except macOS. current code: nall/nall/bump-allocator.hpp, ares/ares/memory/fixed-allocator.cpp
-
 ### ares-154 — Round memories up to a power of two and pre-fill the mirrors
 Lens: memory-layout · Source: ares
 Principle: Allocate a power-of-two buffer and copy the mirrored contents into its padding once, at load time. Every access then becomes `data[addr & mask]`, with no modulo or range branch.
@@ -1233,14 +737,6 @@ Why it is faster: —
 Applies elsewhere: ring buffers with power-of-two capacity; hash tables that index by mask.
 Watch out: —
 Seen in ares: `Readable::allocate` sets `mask = bit::round(size) - 1`. `load()` fills `data[size..mask]` from `mirror(address, size)`, and `read()` is `self.data[address & self.mask]`. current code: ares/ares/memory/readable.hpp
-
-### ares-155 — Select implementations with compile-time constants
-Lens: compiler-build · Source: ares
-Principle: Make configuration choices such as interpreter or recompiler, and scalar or SIMD, `static constexpr` values tested with `if constexpr`. The unused variant is removed from the hot path entirely, with no runtime flag checks.
-Why it is faster: —
-Applies elsewhere: policy-based templates; feature flags resolved at build time.
-Watch out: —
-Seen in ares: `Accuracy::RSP::SIMD = !SISD`, with `SISD = Reference | !ARCHITECTURE_SUPPORTS_SSE4_1`. Each vector op contains both an `if constexpr(Accuracy::RSP::SISD)` loop and an SSE block. The CPU/RSP `Recompiler` flags and `JitInterleaving` work the same way. current code: ares/n64/accuracy.hpp, ares/n64/rsp/interpreter-vpu.cpp
 
 ### ares-156 — Build an exact three-operand saturating add from SIMD min/max
 Lens: simd · Source: ares
@@ -1250,14 +746,6 @@ Applies elsewhere: fixed-point audio mixing; image arithmetic with clamping.
 Watch out: —
 Seen in ares: `VADD`: `sum=_mm_add_epi16(vs,vte); ACCL=_mm_sub_epi16(sum,VCOL); min=_mm_subs_epi16(_mm_min_epi16(vs,vte),VCOL); vd=_mm_adds_epi16(min,_mm_max_epi16(vs,vte));` current code: ares/n64/rsp/interpreter-vpu.cpp
 
-### ares-157 — Implement element broadcast as a table-driven byte shuffle
-Lens: simd · Source: ares
-Principle: Vector element selectors (the "e" field) choose one of 16 lane patterns. Precompute a shuffle mask for each pattern, and one `pshufb` replaces up to eight scalar copies.
-Why it is faster: —
-Applies elsewhere: swizzles in shader emulation; SIMD transpose kernels.
-Watch out: —
-Seen in ares: `r128::operator()(index)` holds a static array of 16 `_mm_set_epi8` masks (01234567, 00224466, ..., 77777777) and returns `_mm_shuffle_epi8(v128, shuffle[index])`. The SISD fallback is a 16-case switch. current code: ares/n64/rsp/interpreter-vpu.cpp
-
 ### ares-158 — Look up compiled code by content hash, with a bitmap of dirty regions
 Lens: jit-interpreters · Source: ares
 Principle: For a small code memory that is overwritten constantly, key compiled blocks by a hash of their bytes plus context. A program that is uploaded again then reuses its existing code. A 64-bit dirty mask, one bit per 64-byte region, makes invalidating on a write a single OR, and the actual flushing is deferred to the next lookup.
@@ -1265,30 +753,6 @@ Why it is faster: —
 Applies elsewhere: content-addressed build caches; shader caches keyed by bytecode hash.
 Watch out: —
 Seen in ares: `block()` first checks a direct `context[2048]` array. On a miss it computes `XXH3_64bits` of the measured block, XORs in the pipeline hash and the address, and probes a `hashset<BlockHashPair>`. `invalidate()` does `dirty |= mask(address,size)`, with wraparound handled by combining two shifted masks. current code: ares/n64/rsp/recompiler.cpp, ares/n64/rsp/rsp.hpp
-
-### ares-159 — Lock-free single-producer/single-consumer ring
-Lens: concurrency · Source: ares
-Principle: With exactly one writer and one reader, a ring buffer needs only two atomic indices and no locks. Letting the indices run over twice the capacity tells "full" apart from "empty" without wasting a slot.
-Why it is faster: —
-Applies elsewhere: audio callback queues; logging pipelines; network packet rings.
-Watch out: —
-Seen in ares: `queue_spsc<T[Size]>`: `size() = (_write - _read) % (2*Size)`, and the write index cycles through [2·Size, 4·Size). `await_read`/`await_write` spin with `spinloop()`. The PS1 GPU renderer thread consumes `queue_spsc<Render[65536]>`. current code: nall/nall/queue/spsc.hpp
-
-### ares-160 — Swap frame buffers and post-process on a worker thread
-Lens: concurrency · Source: ares
-Principle: The emulation thread writes into one buffer and swaps pointers at frame end. A worker thread does palette conversion, effects and presentation on the other buffer, so that work runs off the emulation thread.
-Why it is faster: —
-Applies elsewhere: double/triple buffering in renderers; producer/consumer image pipelines.
-Watch out: —
-Seen in ares: `Screen::frame()` waits for the previous refresh to finish, runs `_inputA.swap(_inputB)`, sets `_frame` and calls `notify_one()`. `Screen::main` waits on a condition variable with a 10 ms timeout and calls `refresh()`. Whether this is threaded is a constexpr choice, `ares::Video::Threaded`. current code: ares/ares/node/video/screen.cpp
-
-### ares-161 — Map native pixel formats to output through a precomputed palette
-Lens: lookup-tables · Source: ares
-Principle: Cores emit compact native color codes. A lookup table built once, and rebuilt only when color settings change, converts each code to ARGB8888 with one load per pixel.
-Why it is faster: —
-Applies elsewhere: indexed-color image decoding; gamma tables in image pipelines.
-Watch out: —
-Seen in ares: The SNES PPU registers `screen->colors(1 << 19, color)`. `refreshPalette()` fills `_palette[_colors]` lazily (`if(_palette) return;`), and the output loops are `*target++ = _palette[*source++]`. current code: ares/ares/node/video/screen.cpp, ares/sfc/ppu-performance/ppu.cpp
 
 ### ares-162 — Render whole scanlines, and skip rendering frames that won't be shown
 Lens: laziness · Source: ares
@@ -1305,11 +769,3 @@ Why it is faster: —
 Applies elsewhere: command-buffer recording in Vulkan/Metal apps; batched draw submission in game engines.
 Watch out: —
 Seen in ares: `Vulkan::render()` copies words into `buffer[0x10000]`, keeps partial commands for the next call, and calls `processor->enqueue_command`. Only `Op::SyncFull` calls `wait_for_timeline(signal_timeline())`. `scanoutAsync` calls `scanout_async_buffer` and waits on `scanout.fence` only before the next one. current code: ares/n64/vulkan/vulkan.cpp
-
-### ares-164 — Dispatch every opcode word through a full-size handler table
-Lens: lookup-tables · Source: ares
-Principle: For a 16-bit instruction set, a 65,536-entry table of prebound handlers turns decoding into a single indexed call. Decoding work, including operand extraction, happens once at construction instead of on every instruction.
-Why it is faster: —
-Applies elsewhere: byte-code interpreters with direct dispatch tables; protocol parsers indexed by message type.
-Watch out: —
-Seen in ares: `M68000::instruction()` is `return instructionTable[r.ird]();`. The constructor fills `std::function<void ()> instructionTable[65536]` with lambdas that capture the decoded register and size arguments, so a handler does not decode its operands. current code: ares/component/processor/m68000/instruction.cpp

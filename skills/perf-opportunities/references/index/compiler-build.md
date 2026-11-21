@@ -1,4 +1,4 @@
-# Lens: compiler-build (224 techniques)
+# Lens: compiler-build (209 techniques)
 
 Compiler flags, LTO/PGO, attributes, templates, constant folding, helping the optimiser.
 
@@ -6,23 +6,14 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 
 - ares-010 | Generate fast and exact variants from one description | Describe the behavior once in a small DSL and generate both a coarse version and a fine-grained version from it.
 - ares-021 | Remove type-erased callbacks from hot paths | A `std::function`-style member is checked and then called indirectly on every use, and the compiler can't inline it.
-- ares-024 | Force-inline small hot accessors across translation units | Tiny getters and memory helpers called per pixel or per cycle cost more in call overhead than in work.
 - ares-025 | Tune the toolchain: optimization level, target CPU, PGO | Compiler flags and versions can be worth double-digit percentages.
-- ares-033 | Compile instrumentation out of release builds | Debug hooks in hot loops cost a test and a call even when nothing is attached.
-- ares-034 | Unroll tiny fixed-count loops by hand | A loop over exactly four elements carries an induction variable, a compare and a branch.
-- ares-060 | Force-inline tiny helpers on hot paths | The `inline` keyword is only a hint, and compilers often decline it for functions with many call sites or for large callers.
-- ares-061 | Put small hot functions where the compiler can see them | A one-line function defined in a separate translation unit can't be inlined without LTO, so every call pays for a call.
-- ares-066 | Turn on link-time optimisation by default, and tune it | In a codebase split into many translation units, the compiler can't inline across them or remove cross-unit overhead.
 - ares-067 | Cache compiler output across rebuilds | Rebuilding unchanged translation units is pure waste.
-- ares-093 | Hoist configuration checks into template parameters | A mode flag that is fixed for a whole session but tested inside the innermost loop should become a compile-time parameter.
 - ares-094 | Batch ticks with compile-time counts and unswitch loops | If an inner routine runs N times in a row with the same enable flags, pass N and the per-instance constants as template arguments.
 - ares-108 | Raise the ISA baseline and check it before startup | Targeting a newer, widely available instruction-set level lets the compiler use better instructions everywhere.
 - ares-109 | Unity builds for whole-module optimization | Compiling each module as a single translation unit, one file that includes all its sources, lets the compiler inline and optimize across file boundaries without depending on LTO.
 - ares-110 | ThinLTO with an incremental cache | Full LTO re-optimizes the whole program on every link.
 - ares-111 | Keep frequently changing constants out of widely included headers | A value that changes every release, if it is defined in a header everything includes, forces a full rebuild each time it changes.
 - ares-134 | Resolve argument moves as a parallel copy | When a generated call passes values that are already in registers, the moves into ABI argument registers can overwrite each other.
-- ares-146 | Let the compiler inline small, hot handlers | Forcing tiny instruction handlers out of line adds a call and return to each execution and blocks optimization across the call.
-- ares-155 | Select implementations with compile-time constants | Make configuration choices such as interpreter or recompiler, and scalar or SIMD, `static constexpr` values tested with `if constexpr`.
 - dolphin-024 | Specialize generated code and leave out identity operations | When you generate source code from configuration, emitting the general formula and hoping the downstream compiler simplifies it is a missed opportunity.
 - dolphin-038 | Replace a virtual stream reader with an inline pointer bump | A virtual `Read8()`/`Read32()` interface costs an indirect call per field and blocks inlining.
 - dolphin-044 | Compile out debug checks in release builds | Breakpoint lookups, memory watchpoints and checked iterators each add work to every operation.
@@ -33,11 +24,11 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-150 | Fuse common instruction pairs into one host operation | Look one instruction ahead for idioms the source ISA spells in two steps but the target does in one.
 - dolphin-156 | Track value properties so you can skip normalization | If analysis can prove a value is already in a canonical form (already rounded, top half equal to bottom half, high bit clear), the normalizing step is a no-op and can be dropped.
 - dolphin-159 | Let liveness drive register-cache spills and loads | A register allocator that knows which values are still needed can write a dead value back once, at its last use, rather than at every branch.
-- dolphin-163 | Copy globals into locals inside inner loops | A global or member that is read in a loop which also writes through pointers must be reloaded every iteration, because the compiler can't rule out aliasing.
+- dolphin-163 | Copy globals into locals inside inner loops | A global or member that is read in a loop which also writes through pointers must be reloaded every iteration, because the compiler can't rule out aliasing. (also: Flycast)
 - dolphin-164 | Force inlining, or turn runtime flags into template parameters | Small accessors and hot lookup helpers only pay off once inlined, and some compilers silently refuse.
 - dolphin-165 | Make always-constant parameters actual constants | If a function is only ever called with one value for some argument, remove the argument and use a local constant.
 - dolphin-244 | Match the container's exact element type when iterating by reference | A `std::map` stores `pair<const K, V>`. Binding `const pair<K, V>&` to that silently builds a converted temporary copy of every element. Use `auto&` or structured bindings so the reference binds directly.
-- dolphin-250 | Make the callable or flag a template parameter instead of a runtime value | Type-erased callables (`std::function`) and runtime bool flags block inlining and add indirect calls or branches.
+- dolphin-250 | Make the callable or flag a template parameter instead of a runtime value | Type-erased callables (`std::function`) and runtime bool flags block inlining and add indirect calls or branches. (also: Flycast)
 - dolphin-293 | Emit nothing for identity operations | A code generator should recognise operands that make an operation a no-op, such as AND with all ones or OR/XOR with zero, and emit nothing.
 - dolphin-294 | Encode small constants in the instruction instead of materialising them | Many ISAs can encode a small immediate, or a hard-wired zero register, directly in the instruction.
 - dolphin-299 | Track known constants separately from where values live | Keep "value is a known constant" as its own fact, apart from "value is in a host register" and "value is in memory".
@@ -45,7 +36,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-330 | Spill choice by a cheap cost score with bounded lookahead | When a register must be freed, score each candidate: a dirty value costs a writeback, and a value needed soon costs a reload.
 - dolphin-331 | Backward liveness pass to drop dead registers and flags | Scan a block in reverse to learn which outputs are overwritten before they are read.
 - dolphin-339 | Template the decoder on its callback so handlers inline | A command-stream parser that calls virtual handlers pays an indirect call per command.
-- duckstation-028 | Force-inline tiny accessors on hot paths | Compilers sometimes decline to inline small helpers, especially across translation units or in less-optimised builds.
+- duckstation-028 | Force-inline tiny accessors on hot paths | Compilers sometimes decline to inline small helpers, especially across translation units or in less-optimised builds. (also: ares)
 - duckstation-029 | Compile diagnostics out of hot functions | Even untaken logging or assertion code makes a function bigger.
 - duckstation-030 | Choose build flags for throughput: LTO on, unneeded mitigations off | Link-time optimisation lets the compiler inline and specialise across files.
 - duckstation-031 | Specialise inner loops with template flags | Runtime flags tested inside a per-pixel or per-element loop add branches and block vectorisation.
@@ -68,18 +59,14 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-281 | Bake decode-time flags into specialized handlers when the caller resolves them once | If a handler is looked up once (by a JIT, or when a pipeline is built) and then called many times, return a variant with the instruction's mode bits already fixed.
 - duckstation-282 | Force-inline small helpers so values stay in registers, and push the rare path out of line | When a hot routine calls several small helpers that share state, every non-inlined call forces that state through memory.
 - duckstation-332 | Enable allocator and aliasing build options for release binaries | Some defaults leave speed on the table. Opting into the Windows segment heap gives better small-allocation behavior and lower fragmentation. Strict aliasing (`-fstrict-aliasing`, which clang-cl does not…
-- duckstation-341 | Pre-instantiate every combination of hot flags into a function-pointer table | Template the inner loop on each boolean or enum that changes per draw, such as shading, texture mode or transparency, and instantiate all the combinations.
+- duckstation-341 | Pre-instantiate every combination of hot flags into a function-pointer table | Template the inner loop on each boolean or enum that changes per draw, such as shading, texture mode or transparency, and instantiate all the combinations. (also: Flycast)
 - duckstation-346 | Raise the ISA baseline and use whole-program optimization in release builds | Set a realistic minimum ISA (SSE4.1 on x86-64, NEON-VFPv4 on ARMv7) so every translation unit can use those instructions without dispatch.
 - flycast-007 | Use the ABI that passes floats in FP registers | On soft-float ABIs every float argument and return value moves between FPU and integer registers at each call.
 - flycast-008 | Ship with aggressive optimization flags and without debug info | For hot numeric code, compile at `-O3` with vectorization, the frame pointer freed for use as a general register, no exceptions and no RTTI.
-- flycast-019 | Make the handler a template parameter so the compiler can inline it | When a dispatcher calls through a stored function pointer, the compiler can't see the callee.
 - flycast-020 | Fully unroll loops whose trip count is a compile-time constant | When the iteration count is a template parameter, expand the loop body with macros into a chain of guarded calls.
-- flycast-029 | Specialize the inner loop for each state combination and dispatch once per batch | If a hot loop branches on per-batch flags (blending, texturing, shading mode), compile a separate version for every combination using template booleans.
 - flycast-045 | Parallelize builds to the core count and keep per-target object directories | Set build parallelism from the machine's processor count instead of a hard-coded value.
 - flycast-089 | Ship optimized builds that target the host ISA, with unused checks compiled out | A debug flag like `-O0 -g` left in the shared build file can make release binaries several times slower.
 - flycast-099 | Run SSA optimization passes on the IR before code generation | Version every register write (SSA). That makes constant propagation, dead-code removal and algebraic identities (a+0, a*1, a&0) simple and safe. Evaluate fully constant ops at compile time, using the same…
-- flycast-108 | Make configuration flags template parameters | A flag that is fixed for the life of a hot function, such as platform type, mirror mode or direction, can be a template parameter.
-- flycast-116 | Hoist loop-invariant base pointers and iterate by pointer | Calling an accessor such as `list.head()` inside a loop forces a reload each time when the compiler can't prove it is invariant.
 - flycast-134 | Tune build flags for the hot targets | Code generation flags can matter as much as code changes.
 - flycast-164 | Make fixed values visible as compile-time constants | An option that can no longer change, or a pointer to a fixed address, still costs a load and a test on every use if it is stored as a mutable global.
 - flycast-165 | Specialize on access width with templates, not a runtime size argument | A handler that takes `u32 sz` and branches on 1/2/4 pays that switch on every call, and it can't return a correctly typed value.
@@ -95,7 +82,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-014 | Lift per-batch decisions into template parameters | When a decision is fixed for a whole batch (a polygon, a scanline, a layer), make it a compile-time template or constant parameter.
 - melonds-035 | Move small hot containers into header templates | A tiny container whose methods live in a `.cpp` file costs a real call for every push and pop unless link-time optimisation is on.
 - melonds-036 | Default builds to an optimised configuration | If no build type is chosen, many build systems compile without optimisation, and users then run code that is several times slower than necessary.
-- melonds-037 | Compile out diagnostic instrumentation | Counters and checks added while debugging run on hot paths.
+- melonds-037 | Compile out diagnostic instrumentation | Counters and checks added while debugging run on hot paths. (also: ares)
 - melonds-038 | Move cold cases out of the hot dispatcher | A dispatcher that handles a few hot fast paths alongside a large switch of rare cases gets big, hurts instruction-cache density, and is less likely to be inlined.
 - melonds-056 | Let the toolchain optimize across files, and debug with -Og | Link-time optimization lets the compiler inline and specialize across translation units.
 - melonds-076 | Specialize hot functions on a small compile-time parameter | If a function branches on a parameter with only a few values, such as which CPU, which mode or which pixel format, make it a template or generic parameter.
@@ -107,8 +94,8 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-152 | Set optimisation defaults in the build system without clobbering user flags | Release builds benefit from the highest optimisation level, and debug builds from `-Og`, which optimises but stays debuggable.
 - melonds-171 | Template the per-pixel loops on rarely changing mode flags | Layer and sprite renderers check flags such as mosaic, window or BG mode per pixel or per tile even though these change per scanline at most.
 - mesen2-006 | Hoist loop-invariant computations out of per-element loops | Any expression inside a loop that doesn't depend on the loop variable gets recomputed on every iteration, and the compiler often can't hoist it when it involves member fields or calls.
-- mesen2-007 | Turn runtime mode flags into template parameters | If a hot loop tests the same few configuration flags on every iteration, dispatch once to a template instantiation for each flag combination.
-- mesen2-008 | Unroll small fixed-count loops | When a loop's trip count is a small constant, or one of a few known values, writing out the body removes loop overhead and index arithmetic.
+- mesen2-007 | Turn runtime mode flags into template parameters | If a hot loop tests the same few configuration flags on every iteration, dispatch once to a template instantiation for each flag combination. (also: ares, Flycast)
+- mesen2-008 | Unroll small fixed-count loops | When a loop's trip count is a small constant, or one of a few known values, writing out the body removes loop overhead and index arithmetic. (also: ares)
 - mesen2-017 | Force-inline small functions on the hottest path | Compilers decline to inline across translation units, or when their heuristics guess wrong.
 - mesen2-020 | Profile-guided optimization from representative workloads | Build an instrumented binary, run it on realistic inputs, and recompile with the recorded profile.
 - mesen2-021 | Compile validation checks out of release builds | Defensive checks on internal invariants cost a compare, a branch and exception-handling code on every call.
@@ -152,7 +139,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-236 | Ship release builds with LTO and offer profile-guided optimization | Link-time optimization allows inlining across translation units.
 - pcsx2-027 | Force-inline tiny hot functions and use register calling conventions | Small functions called from very hot loops pay call overhead that can exceed their bodies, and stack-based argument passing adds memory traffic.
 - pcsx2-028 | Turn on optimization flags for bundled third-party libraries | Vendored libraries often build with default or debug-leaning settings even in release builds.
-- pcsx2-029 | Replace heavy template instantiation with runtime dispatch where it isn't hot | Templating whole class hierarchies or hundreds of functions on a parameter multiplies code size and link time.
+- pcsx2-029 | Replace heavy template instantiation with runtime dispatch where it isn't hot | Templating whole class hierarchies or hundreds of functions on a parameter multiplies code size and link time. (also: Seastar, Tokio)
 - pcsx2-055 | Prefer inlinable intrinsics over opaque asm or generated routines | The compiler can't inline a hand-written assembly function or a pointer to runtime-generated code.
 - pcsx2-056 | Turn runtime mode flags into template parameters | When a hot loop checks a few configuration values on every iteration, and those values don't change during the loop, make them template parameters.
 - pcsx2-084 | Pass non-trivial objects by const reference and pre-increment iterators | Passing a class with a constructor by value, or post-incrementing an iterator, can create temporaries that a weak optimizer won't remove.
@@ -172,7 +159,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ppsspp-098 | Specialize generated code for common constant values | When generating code (shaders, queries, JIT output) from runtime parameters, detect common special values and emit a cheaper variant for them.
 - ppsspp-101 | Turn divisions into multiplies and constant divisors | Division is many times slower than multiplication.
 - ppsspp-102 | Template on loop-invariant flags | If a hot loop tests the same configuration flags on every iteration, make them template (compile-time) parameters and dispatch once to the right instantiation.
-- ppsspp-145 | Move tiny hot methods into the header so they inline | Small functions defined in a .cpp file can't be inlined across translation units without LTO, so every call pays call and return overhead and blocks optimizations around it.
+- ppsspp-145 | Move tiny hot methods into the header so they inline | Small functions defined in a .cpp file can't be inlined across translation units without LTO, so every call pays call and return overhead and blocks optimizations around it. (also: ares)
 - ppsspp-157 | Hoist invariant products and use the smallest matrix that does the job | In nested loops, compute a product that only depends on the outer index once per outer iteration.
 - ppsspp-164 | Remove hidden copies: auto by value, pop-by-value, read-modify-write | Writing `auto x = getVector()` copies the whole container.
 - ppsspp-191 | Make hot accessors inlinable | A getter defined in a `.cpp` file costs a real call at every use unless link-time optimization is on.
@@ -197,18 +184,17 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - seastar-099 | Let nested coroutine frames live inside the caller (heap allocation elision) | When a callee coroutine is awaited immediately and finishes before the caller resumes, place its frame inside the caller's frame instead of on the heap.
 - seastar-100 | Amortize producer/consumer switches: buffered generators and direct transfer | Let a generator fill a small fixed buffer and suspend only when it is full; when no preemption is pending, transfer control directly to the other coroutine instead of through the scheduler.
 - seastar-101 | Count the moves in generic plumbing | In template glue that every async call expands, construct values in their final place, return references to internal state, move the user's callable exactly once, and keep function shapes simple enough for…
-- seastar-102 | Type-erase or de-template code whose speed does not depend on the type | Templates keyed on a per-call-site type (each lambda) produce one copy per call site.
 - seastar-103 | Pay for generic code only where it is used: compile-time and instantiation diet | Instantiate only what is used (`if constexpr`, class templates instead of local classes), avoid recursive metaprogramming, instantiate common specializations once, collapse unused parameters, and convert to a…
 - seastar-104 | Shrink dependency fan-out: header diet and no static constructors | Keep widely included headers small: move heavy or rarely used inline code out of line, split monolithic utility headers, drop redundant includes and avoid static initializers in library code.
-- snes9x-005 | Make tiny hot functions inlinable | A call to a tiny function costs more than its body: argument setup, a jump and return, spilled registers, and no optimization across the call boundary.
-- snes9x-011 | Fix a runtime-selectable format at compile time | Supporting several data formats through runtime dispatch puts an indirection or branch into every element operation.
+- snes9x-005 | Make tiny hot functions inlinable | A call to a tiny function costs more than its body: argument setup, a jump and return, spilled registers, and no optimization across the call boundary. (also: ares)
+- snes9x-011 | Fix a runtime-selectable format at compile time | Supporting several data formats through runtime dispatch puts an indirection or branch into every element operation. (also: ares)
 - snes9x-031 | Opt into known-endianness fast paths and drop redundant checks | Portable code often assembles multi-byte values a byte at a time.
 - snes9x-035 | Turn runtime-configurable formats into compile-time constants | If a data format can be chosen at run time through function pointers and global mask variables, every pixel operation becomes an indirect call plus memory loads.
 - snes9x-036 | Generate specialized kernels from static policy templates | Write a kernel once as a template over small policy types (how to write a pixel, which blend to apply, how to step lines), each exposing static member functions.
 - snes9x-037 | Force-inline tiny hot helpers | The compiler's inlining heuristics can give up inside large template instantiations or after code was moved out of macros, leaving call overhead on a two-line function in the innermost loop.
 - snes9x-038 | A rolled loop can beat a manual unroll | Hand-unrolling a short fixed-count loop inside a macro that is expanded many times multiplies code size and puts pressure on the instruction cache.
 - snes9x-039 | Split heavy template instantiations across translation units | One source file that instantiates hundreds of template specializations is compiled serially and becomes the critical path of a parallel build.
-- snes9x-040 | Enable link-time / whole-program optimization | Without LTO the compiler cannot inline or specialize across source files, so hot calls between modules (CPU core to memory map, renderer to PPU) remain real calls.
+- snes9x-040 | Enable link-time / whole-program optimization | Without LTO the compiler cannot inline or specialize across source files, so hot calls between modules (CPU core to memory map, renderer to PPU) remain real calls. (also: ares)
 - snes9x-041 | Choose optimization levels per compiler, and keep the safe ones | The same flag means different things on different compilers.
 - snes9x-062 | Don't std::move a local return value | Writing `return std::move(local);` prevents named return value optimization, so the compiler must move-construct instead of building the object directly in the caller's slot.
 - snes9x-065 | Make local lookup tables static const | A `const` array declared inside a function without `static` has automatic storage.
@@ -219,7 +205,6 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - snes9x-133 | Choose the pixel format at compile time | If the output format is fixed for a build, make channel shifts and masks compile-time constants.
 - snes9x-150 | Paste opcode bodies into one switch, build as one unit | Put all opcode cases in a single `switch` by including generated fragment files, and compile the component's sources as one translation unit.
 - tokio-059 | Hoist type-independent logic out of generic code | Code that is duplicated for every type parameter should contain only the parts that actually depend on the type.
-- tokio-060 | Type-erase at the boundary into heavy generic machinery | When many call sites feed different types into the same large generic routine, convert them to one erased type (a trait object or boxed pointer) at the entry point, so the routine is instantiated once instead…
 - tokio-061 | Make type-dependent branches compile-time constants | When a branch depends only on properties of a type (size, alignment, capability), express it as a compile-time constant so the untaken arm is never instantiated.
 - tokio-062 | De-genericize internals and compile out unused subsystems | Internal types that are generic only for flexibility nobody uses should be made concrete.
 - tokio-063 | Skip re-registering a callback that is identical to the stored one | When interest is re-registered on every poll, compare the new waker or callback with the stored one by identity and replace it only if it would wake something different.

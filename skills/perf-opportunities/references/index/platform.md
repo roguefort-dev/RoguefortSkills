@@ -1,11 +1,10 @@
-# Lens: platform (87 techniques)
+# Lens: platform (80 techniques)
 
 OS- and hardware-specific features, per-platform paths, power and mobile constraints.
 
 Format: `id | title | principle (first sentence)`. The id prefix names the cards file: `../cards/<prefix>.md`.
 
 - ares-059 | Target a portable JIT IR instead of one host ISA | A JIT written straight to x86 encodings runs at interpreter speed on every other CPU.
-- ares-098 | Keep JIT code close to the executable | Branches between generated code and the host binary predict and encode best when the two are within short range of each other: about 128 MiB for direct branches on ARM64, and similar limits for branch…
 - ares-100 | Reference-count nested protection toggles | When code paths that each flip a global mode, such as a page's write/execute permission, can nest, keep a thread-local depth counter.
 - ares-131 | Store emulated flags in the host's bit layout | Lay out the emulated status bits to match the host register's bit positions.
 - dolphin-095 | Let the real-time callback pull data directly | An extra thread that fills a buffer the audio callback then copies adds a hop, a copy and latency.
@@ -33,16 +32,10 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-257 | Keep expensive system handles alive, and update them in place | Driver instances, audio contexts and similar handles are slow to create and sometimes leak when destroyed.
 - duckstation-268 | Poll inputs only when something consumes them | High-rate sources such as gyros, accelerometers and sensors cost CPU and bus bandwidth even when nothing reads them.
 - duckstation-309 | Compile one hot file at a higher ISA level and select it at runtime | Keep the baseline binary portable, but build the hot kernel a second time with `-mavx2` (or `/arch:AVX2`) in its own namespace.
-- duckstation-338 | Place the JIT code buffer near the executable so calls stay short | Direct branches and calls have limited range (±32 MB on ARM32, ±128 MB on ARM64, ±2 GB rel32 on x64).
-- flycast-026 | Allocate generated code near the binary | On x86-64, direct calls and jumps reach only ±2 GB.
+- duckstation-338 | Place the JIT code buffer near the executable so calls stay short | Direct branches and calls have limited range (±32 MB on ARM32, ±128 MB on ARM64, ±2 GB rel32 on x64). (also: ares, Flycast)
 - flycast-035 | Put the FPU in fast mode and reprogram it only when the mode changes | On many CPUs, denormal operands send floating-point instructions down a slow microcode path.
-- flycast-065 | Choose instructions by runtime CPU feature detection | Fused multiply-add, horizontal adds and wider vectors save instructions, but not every CPU has them.
-- flycast-132 | Present without vsync when running uncapped | Vsync caps output at the display rate. In a fast-forward or benchmark mode, switch the swap interval or present mode to immediate so the producer is not throttled.
-- flycast-135 | Detect CPU features at runtime before emitting newer instructions | Use a single fused instruction (here BMI1 `andn`) when the CPU supports it, and fall back to an equivalent sequence otherwise.
-- flycast-152 | Change driver state only when it actually changes | Calls such as setting the swap interval go through the driver and can flush or synchronize.
 - flycast-153 | Ask the OS for the fast GPU explicitly | On hybrid-graphics laptops, the default adapter is often the integrated GPU.
 - flycast-191 | Test feature macros by value, not by existence | SDK headers often define platform macros on every target, set to 0 or 1.
-- flycast-199 | Use the non-blocking present mode the swap chain offers | For uncapped speed (fast-forward, vsync off), presentation must not block on the display.
 - melonds-077 | Keep hot globals in the low 2 GB so generated code can address them directly | On x86-64, a memory operand carries only a signed 32-bit displacement.
 - melonds-089 | Use page protection as a write barrier for cached derived data | If you cache something derived from memory, such as compiled code or a parsed structure, you need to know when the source changes.
 - melonds-123 | Count set bits with a popcount intrinsic, not a loop | Counting the bits of a mask with a loop of shift-and-test costs up to N iterations and N branches.
@@ -57,7 +50,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-098 | Choose cheaper algorithm variants per platform at compile time | On the weakest target, trade fidelity you can't perceive for CPU time by swapping in a cheaper variant at build time.
 - mgba-142 | Use bit intrinsics instead of bit loops | popcount, clz/ctz and bswap are single instructions on most CPUs, and have branch-free SWAR fallbacks elsewhere.
 - mgba-184 | Use hardware bit-scan intrinsics, with a compact table fallback | Count-trailing-zeros, popcount and byteswap are single instructions on modern CPUs.
-- mgba-213 | Block on vsync only when you want pacing, and cache driver state | A swap interval of 1 limits frame rate to the display's refresh rate.
+- mgba-213 | Block on vsync only when you want pacing, and cache driver state | A swap interval of 1 limits frame rate to the display's refresh rate. (also: Flycast)
 - mgba-224 | Hide byte order behind macros that compile to the host's native swapping load | Accesses in a foreign byte order should compile to a single instruction on every host: a plain load when the orders match, otherwise a bswap intrinsic or a byte-reversed load instruction.
 - netty-124 | Bypass the portable abstraction with a thin native layer over the OS primitive | When a portable runtime API (the JDK selector, a generic event library) adds bookkeeping, synchronization or semantics you do not need, call the OS primitive (edge-triggered epoll, io_uring) directly through…
 - netty-125 | Cross the native boundary rarely: batch inside one call, cache results, skip calls whose answer is known | Every managed-to-native call costs far more than a normal call.

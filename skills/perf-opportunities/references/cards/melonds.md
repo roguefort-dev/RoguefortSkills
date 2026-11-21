@@ -75,12 +75,12 @@ Watch out: —
 Seen in melonDS: The ARM9 protection unit's eight overlapping regions are expanded by `UpdatePURegions()` into `u8 PU_PrivMap[0x100000]`, one byte per 4 KB page holding read/write/execute/cache bits. Memory timings went from a `RegionTimings` struct per named region to `u8 ARM9MemTimings[0x100000][4]` (N16/S16/N32/S32 per page), filled by `SetARM9RegionTimings(start, end, buswidth, nonseq, seq)`. That function precomputes `N32 = N16 + S16` for 16-bit buses. In `29bca33b` the CPU's per-page `MemTimings[addr>>12]` replaced `ARM9MemTimings[CodeRegion]`, and `4aafdee1` caches a region's code timing in `RegionCodeCycles` when a jump happens. 86dae1a2 2018-12 “make this other branch where we're going to actually make it usable” · c6fb152d 2018-12 “start devolving things…” · 29bca33b 2018-12 “take it somewhere.” · 4aafdee1 2018-12 “more sensible cache timings”
 
 ### melonds-010 — Cache a direct pointer to the current region; refresh it only on region change
-Lens: memory-layout · Source: melonDS
+Lens: memory-layout · Source: melonDS · Also: ares
 Principle: Sequential accesses almost always stay in the same backing buffer. Resolve the buffer (base pointer plus mask) once, and redo the lookup only when control flow can move to another region. The common access then becomes `mem[addr & mask]` and skips the general dispatcher.
 Why it is faster: —
 Applies elsewhere: iterators that hold a pointer into the current chunk of a rope or deque, a DB cursor that keeps the current page pinned, memory-mapped file readers that remap only at window boundaries.
 Watch out: —
-Seen in melonDS: `ARMv5::CodeRead32` now starts with `if (CodeMem.Mem) return *(u32*)&CodeMem.Mem[addr & CodeMem.Mask];`. `JumpTo` calls `SetupCodeMem(addr)` only `if (newregion != oldregion)`. The commit says the ARM7 isn't worth it because its code runs from WRAM, whose mapping prevents this shortcut. `MemRegion CodeMem` is still in `ARM.h`. 91b2f645 2018-12 “add back faster prefetch for ARM9”
+Seen in melonDS: `ARMv5::CodeRead32` now starts with `if (CodeMem.Mem) return *(u32*)&CodeMem.Mem[addr & CodeMem.Mask];`. `JumpTo` calls `SetupCodeMem(addr)` only `if (newregion != oldregion)`. The commit says the ARM7 isn't worth it because its code runs from WRAM, whose mapping prevents this shortcut. `MemRegion CodeMem` is still in `ARM.h`. 91b2f645 2018-12 “add back faster prefetch for ARM9” • Also seen in ares (ares-080): The N64 recompiler's per-instruction icache timing called `devirtualizeFast(ipu.pc)`, which used to walk the TLB every time. It gained a `DevirtualizeCache{vbase,pbase}`: a hit when `vaddr>>12 == vbase` returns `pbase + (vaddr & 0xfff)`. The cache was first cleared on every mapped store, and is now cleared only in `TLBWI`/`TLBWR`. A follow-up removed a redundant `pbase` store from the miss path and marked the function `alwaysinline`. 7f09b67df 2023-06 “n64: speed up recompiler icache lookup” · 345a7cb89 2023-06 “n64: clear devirtualize cache on TLB changes rather than memory writes” · 878419da0 2023-06 “n64: avoid unnecessary pbase writes in devirtualizeFast and hint as alwaysinline”
 
 ### melonds-011 — Replace mode-flag parameters with dedicated entry points
 Lens: compiler-build · Source: melonDS
@@ -291,12 +291,12 @@ Watch out: —
 Seen in melonDS: `CMakeLists.txt` gained `set(CMAKE_BUILD_TYPE Release)`. af5fb2e8 2017-06 “add optimization to cmake build”
 
 ### melonds-037 — Compile out diagnostic instrumentation
-Lens: compiler-build · Source: melonDS
+Lens: compiler-build · Source: melonDS · Also: ares
 Principle: Counters and checks added while debugging run on hot paths. Put them behind a preprocessor or build flag, so release builds contain no extra stores, branches or globals while the checks stay available on demand.
 Why it is faster: —
 Applies elsewhere: `assert`/`NDEBUG`, Rust's `debug_assert!`, tracing macros that compile to nothing.
 Watch out: —
-Seen in melonDS: Ad-hoc globals such as `arm9total`/`arm7total`, which were updated in `ARMv5::Execute`, `ARMv4::Execute` and `DMA::Run`, were replaced by `dbg_CyclesARM9` and related counters, all wrapped in `#ifdef DEBUG_CHECK_DESYNC`. 3dd8c7b1 2018-12 “finish the work on the main loop… also add #ifdef'd debug code to check for desyncs.”
+Seen in melonDS: Ad-hoc globals such as `arm9total`/`arm7total`, which were updated in `ARMv5::Execute`, `ARMv4::Execute` and `DMA::Run`, were replaced by `dbg_CyclesARM9` and related counters, all wrapped in `#ifdef DEBUG_CHECK_DESYNC`. 3dd8c7b1 2018-12 “finish the work on the main loop… also add #ifdef'd debug code to check for desyncs.” • Also seen in ares (ares-033): The CPU gained a `struct Debugger { hook<void (uint32)> op_exec, op_read; hook<void (uint32, uint8)> op_write; }` called from `op_step` and the bus accessors. The changelog says hooks don't perform the test or invocation when `DEBUGGER` isn't defined, so regular builds have no overhead. This replaced `debugvirtual` overrides. Earlier, the debugger had been changed "to not break out of core for simple things", going from sub-1 fps to near full speed with breakpoints set. 730e6ae4c 2012-02 “Update to v085r04 release.” · 92da6bde2 2011-01 “Update to v073r07 release.”
 
 ### melonds-038 — Move cold cases out of the hot dispatcher
 Lens: compiler-build · Source: melonDS
@@ -315,12 +315,12 @@ Watch out: —
 Seen in melonDS: Before, `NDS::RunSystem(cycles)` subtracted `cycles` from every `SchedList[i].WaitCycles`, and each CPU kept its own `CyclesToRun`/`ARM7Offset` bookkeeping. The redesign gives each CPU a 64-bit `ARM9Timestamp`/`ARM7Timestamp` and a target. `NextTarget()` takes the minimum event `Timestamp`, and `RunSystem(timestamp)` fires an event when `Timestamp <= SysTimestamp`. Both loops use `if (!mask) break; ... mask >>= 1;`, so they end at the last pending event. 669247e8 2019-01 “redesign main emu loop to use timestamps instead of being a trainwreck”
 
 ### melonds-040 — Synchronize coarse-grained when you can
-Lens: concurrency · Source: melonDS
+Lens: concurrency · Source: melonDS · Also: ares
 Principle: When two components run interleaved and resync at a fixed quantum, every resync costs dispatch overhead and cache warm-up. A larger quantum spreads that cost over more useful work. Precise events still cut a slice short, so the larger quantum only changes the default upper bound.
 Why it is faster: —
 Applies elsewhere: batch size in message consumers, the flush interval of a write-behind cache, the time slice of a cooperative scheduler, lockstep tick rate in multiplayer simulations.
 Watch out: —
-Seen in melonDS: `kMaxIterationCycles`, the longest the ARM9 and ARM7 can run before swapping when no event is pending, went from 16 to 64. `NextTarget()` still clamps the slice to the earliest scheduled event. 49b2f8d9 2019-06 “raise kMaxIterationCycles to 64”
+Seen in melonDS: `kMaxIterationCycles`, the longest the ARM9 and ARM7 can run before swapping when no event is pending, went from 16 to 64. `NextTarget()` still clamps the slice to the earliest scheduled event. 49b2f8d9 2019-06 “raise kMaxIterationCycles to 64” • Also seen in ares (ares-040): `md::CPU::wait()` called `Thread::synchronize()` on every bus wait. It now decrements `cyclesUntilSync` and syncs only when it reaches ≤0, adding `minCyclesBetweenSyncs` each time: 4 CPU cycles for the Mega Drive and Mega CD, 40 for the 32X. The commit notes that the dot renderer gains nothing from syncing more often than about a pixel. `M32X::SH7604::step` uses the same countdown before syncing the two SH-2s with the 68K. 8e94e664c 2021-08 “md: optimize how often we sync the cpu with other components.” · 2380e62c7 2021-08 “md: fix sync to be in terms of cpu cycles” · cbfd7ed27 2022-09 “m32x: unify interpreter/recompiler sync timing” • Also seen in ares (ares-132): `CPU::instruction()` now returns whether to synchronize. On the JIT path the budget is recomputed only when `Thread::clock >= jitClockTarget`, as `min(JitInterleaving, timerDelta, queueDelta)`. `Accuracy::CPU::JitInterleaving` is a constexpr tuning knob. 8b4f1fa16 2026-05 “n64: CPU now has configurable interleaving with the rest of the hardware”
 
 ### melonds-041 — Recompute a derived predicate when its inputs change, not when you read it
 Lens: laziness · Source: melonDS
@@ -483,12 +483,12 @@ Watch out: —
 Seen in melonDS: `Comp_AddCycles_C/CD/CDI` add to `ConstantCycles` when the instruction is unconditional and to the runtime counter otherwise. Conditional-skip paths leave out the fix-up jump unless the instruction had `IrregularCycles`. The block epilogue then does a single `MOV EAX, ConstantCycles`. After block linking this became `SUB [Cycles], ConstantCycles`. 2ef77688 2019-09 “…small cycle counting optimisation” · a687be98 2019-10 “new block cache and much more… load/store cycle counting”
 
 ### melonds-061 — Grow blocks across predictable branches (superblocks)
-Lens: jit-interpreters · Source: melonDS
+Lens: jit-interpreters · Source: melonDS · Also: ares
 Principle: Ending a compiled block at every branch keeps blocks tiny, so dispatch overhead dominates and the optimizer sees little context. Follow unconditional and static branches, and calls and returns whose target is known, while compiling. Turn conditional branches into side exits. Larger regions give register allocation and flag elimination more room to work.
 Why it is faster: —
 Applies elsewhere: trace compilation in LuaJIT/TraceMonkey, superblock formation in Dynamo and HP compilers, function inlining across call sites in any optimizing compiler.
 Watch out: —
-Seen in melonDS: While building a block, `CompileBlock` interprets each instruction. When `DecodeBranch` finds a static target that was actually taken, it continues fetching from that target (`branch_FollowCondTaken`). A not-taken conditional branch becomes an early exit (`branch_FollowCondNotTaken`). Later, BL records `lr`, so a following `BX LR` resolves statically and the block continues past the return. a687be98 2019-10 “…blocks aren't stopped at any branch, but are being followed if possible to get larger blocks” · 81f38c14 2019-10 “…jit blocks follow simple returns”
+Seen in melonDS: While building a block, `CompileBlock` interprets each instruction. When `DecodeBranch` finds a static target that was actually taken, it continues fetching from that target (`branch_FollowCondTaken`). A not-taken conditional branch becomes an early exit (`branch_FollowCondNotTaken`). Later, BL records `lr`, so a following `BX LR` resolves statically and the block continues past the return. a687be98 2019-10 “…blocks aren't stopped at any branch, but are being followed if possible to get larger blocks” · 81f38c14 2019-10 “…jit blocks follow simple returns” • Also seen in ares (ares-127): A first attempt added lazily backpatched links between blocks within a section, guarded by dirty, budget and queue checks. A month later blocks were extended through branches: a planning prepass builds the instruction window, and `emitAliasAddresses` publishes the internal targets. The linking code was then removed as "not useful anymore". 70f1cf07c 2026-04 “n64: add safe intra-section JIT block linking” · 49af8ab6a 2026-05 “n64: in CPU JIT, blocks now extend through branches”
 
 ### melonds-062 — Detect busy-wait loops and skip ahead in time
 Lens: jit-interpreters · Source: melonDS
@@ -523,12 +523,12 @@ Watch out: —
 Seen in melonDS: `CompileBlock` runs each instruction through the interpreter and saves `cpu->DataRegion`. `Comp_MemAccess` classifies it with `ClassifyAddress9/7`. For MainRAM, DTCM, WRAM and similar regions it emits `MOVZX tmp, byte [MemoryStatus9 + (addr>>9)]; CMP tmp, expectedTarget; JNE slowPath`, then a direct masked access. `MemoryStatus9/7` stores the region kind per 512-byte page, with bit 7 set when the page holds compiled code, so a store to a code page fails the guard and takes the invalidating slow path. 0f53a345 2020-05 “rewrite JIT memory emulation”
 
 ### melonds-066 — Track code pages at fine granularity for cheap self-modifying-code checks
-Lens: jit-interpreters · Source: melonDS
+Lens: jit-interpreters · Source: melonDS · Also: ares
 Principle: To detect writes to compiled code without slowing every store, keep a compact per-page record of the blocks that cover each page. A store only has to test whether that page's block list is non-empty. Pick a page size small enough that writes to nearby data don't keep throwing away unrelated code. Translate mirrored addresses to one canonical "pseudo-physical" space so that each byte has a single entry.
 Why it is faster: —
 Applies elsewhere: write-protecting JIT pages (W^X) and catching the fault, card marking in generational GCs, dirty-page bitmaps in hypervisor live migration.
 Watch out: —
-Seen in melonDS: The block cache stores `CodeRanges[addr/256]`, each with a `TinyVector` of blocks and a `TimesInvalidated` counter. Generated store code checks `CMP word [CodeRanges + ...Blocks.Length], 0`. The field was narrowed to 16 bits so the compare works directly on memory. `AddrTranslate9/7` collapse mirrors into one pseudo-physical space. Granularity was tightened to fix Dragon Quest IX, where data shared code pages. a687be98 2019-10 “new block cache…more reliable code invalidation detection” · aa23f21b 2019-10 “decrease jit block cache address granularity” · 386100c0 2019-11 “make literal optimisation more reliable”
+Seen in melonDS: The block cache stores `CodeRanges[addr/256]`, each with a `TinyVector` of blocks and a `TimesInvalidated` counter. Generated store code checks `CMP word [CodeRanges + ...Blocks.Length], 0`. The field was narrowed to 16 bits so the compare works directly on memory. `AddrTranslate9/7` collapse mirrors into one pseudo-physical space. Granularity was tightened to fix Dragon Quest IX, where data shared code pages. a687be98 2019-10 “new block cache…more reliable code invalidation detection” · aa23f21b 2019-10 “decrease jit block cache address granularity” · 386100c0 2019-11 “make literal optimisation more reliable” • Also seen in ares (ares-126): Each 4 KiB section now carries `u8 lineBlocks[128]`, one entry per 32-byte line. `invalidateRange` walks only the lines a write touches, and marks the section dirty only if one of them holds code. Stores call `invalidateRange(address, Size)` once, where they used to make two separate calls. 68134837d 2026-05 “n64: avoid excessive JIT trashing by reducing the 4K section granularity”
 
 ### melonds-067 — Keep invalidated compiled code in a content-addressed side cache
 Lens: jit-interpreters · Source: melonDS
@@ -699,12 +699,12 @@ Watch out: —
 Seen in melonDS: The interpreter records `DataRegion` on every load and store. The compiler pre-executes each instruction while building the block, so `CurInstr.DataRegion` tells it which region the access really hit. It uses that both to pick constant wait-state cycle counts (`Comp_AddCycles_CDI`) and, in `052ff736`, as `expectedTarget` for an inline fast path. `1ad90cb3` widened the field from `addr >> 24` to `addr >> 20` so the compiler can tell sub-regions such as ITCM/DTCM apart. 40b88ab0 2019-10 “...load/store cycle counting...” · 1ad90cb3 2020-04 “include more information in DataRegion” · 052ff736 2020-05 “rewrite JIT memory emulation”
 
 ### melonds-088 — Let the MMU do address translation, and back-patch on fault
-Lens: memory-layout · Source: melonDS
+Lens: memory-layout · Source: melonDS · Also: Flycast
 Principle: Reserve a large virtual address range and map the real backing memory into it with the same layout as the emulated or remote address space, mirrors included. Generated code then turns every access into one host load at `base + addr`. Accesses that hit unmapped holes, such as I/O, raise a fault. The handler rewrites that one call site into a slow-path call and resumes, so only the rare cases pay.
 Why it is faster: —
 Applies elsewhere: WebAssembly runtimes using 4/8 GB guard regions to drop bounds checks, Dolphin/Citra fastmem, LMDB and databases using `mmap` instead of explicit reads, sanitizer shadow memory, and userfaultfd-based lazy VM restore.
 Watch out: —
-Seen in melonDS: `ARMJIT_Memory.cpp` maps one shared memory object (memfd/ashmem on Linux and Android, `CreateFileMapping`+`MapViewOfFileEx` on Windows, `svcMapProcessMemory` on Switch) into two 4 GB windows, `FastMem9Start`/`FastMem7Start`. Only regions in use are mapped, and per-page state lives in `MappingStatus9/7`. Each fast access records a `LoadStorePatch` {offset, size, slow function}. On SIGSEGV or a vectored exception, `RewriteMemAccess(pc)` finds the patch, overwrites the site with `CALL patch.PatchFunc` plus NOP padding, and resumes. e335a8ca 2020-06 “first steps in bringing over the JIT refactor/fastmem” · c5381d29 2020-06 “reconcile DSi and JIT, fastmem for x64 and Windows”
+Seen in melonDS: `ARMJIT_Memory.cpp` maps one shared memory object (memfd/ashmem on Linux and Android, `CreateFileMapping`+`MapViewOfFileEx` on Windows, `svcMapProcessMemory` on Switch) into two 4 GB windows, `FastMem9Start`/`FastMem7Start`. Only regions in use are mapped, and per-page state lives in `MappingStatus9/7`. Each fast access records a `LoadStorePatch` {offset, size, slow function}. On SIGSEGV or a vectored exception, `RewriteMemAccess(pc)` finds the patch, overwrites the site with `CALL patch.PatchFunc` plus NOP padding, and resumes. e335a8ca 2020-06 “first steps in bringing over the JIT refactor/fastmem” · c5381d29 2020-06 “reconcile DSi and JIT, fastmem for x64 and Windows” • Also seen in Flycast (flycast-207): `initMappings` maps one shared-memory file at several offsets, including VRAM at `0x04000000` and `0x06000000` and main RAM at `0x0C000000` with three mirrors. The x64 fast handler is `and_(call_regs[0], 0x1FFFFFFF); mov(eax, dword[rax + call_regs64[0]]);`. `rewriteMemAccess` recovers the call target from the return address, emits `call(MemHandlers[MemType::Slow][size][op])` over it (or the store-queue handler for `0xE0000000` addresses), and restores the address register from `r9`. current code: core/hw/mem/addrspace.cpp, core/rec-x64/rec_x64.cpp
 
 ### melonds-089 — Use page protection as a write barrier for cached derived data
 Lens: platform · Source: melonDS
@@ -723,12 +723,12 @@ Watch out: —
 Seen in melonDS: `Comp_SpecialBranchBehaviour` emitted `NOP(5)` at a static exit and a jump to `BranchStub[Num]`, which calls `ARMJIT::LinkBlock<cpu>`. That then calls `Compiler::LinkBlock(offset, entry)` to write `JMP entry` over the NOPs. `UnlinkBlock` restores them, and `JitBlock::Links()` remembers every incoming site. A new `ARMJIT_Linkage.s` held the dispatcher. Six months later the default was lowered so linking is no longer used (“branch linking is dead”). Branch following stayed. 3098c6a9 2020-04 “preparations for block linking” · 1c07932b 2020-04 “implement block linking + some refactoring...” · 65be1840 2020-10 “change JIT branch optimisations default to 1 branch linking is dead”
 
 ### melonds-091 — Recycle invalidated artifacts by content hash
-Lens: jit-interpreters · Source: melonDS
+Lens: jit-interpreters · Source: melonDS · Also: ares
 Principle: Invalidation is often a false alarm: a write hits the page but leaves the bytes the artifact depends on unchanged, or code is unloaded and later reloaded identically. Park invalidated artifacts in a side table keyed by a hash of their inputs. Before rebuilding, check whether an identical one is parked and revive it, which skips the expensive recompile.
 Why it is faster: —
 Applies elsewhere: content-addressed build caches (ccache, Bazel, Nix), browser V8 code caching keyed by script hash, shader pipeline caches, and HTTP ETag revalidation (304 Not Modified).
 Watch out: —
-Seen in melonDS: `InvalidateByAddr` unlinks a block but stores it in `RestoreCandidates`. `CompileBlock` first checks for a match: originally on address plus an instruction-by-instruction compare, later on xxHash3 `InstrHash` with `PseudoPhysicalAddr` and `LiteralHash` verified (`efb79664`, “makes Golden Sun burn a little slower through the JIT memory”). The custom 2-way lossy hash table was replaced by `std::unordered_map` in `4299ef5f`, which is still the form today. 40b88ab0 2019-10 “new block cache and much more...” · efb79664 2020-05 “use instr hash as key for restore candidates...” · 4299ef5f 2020-08 “use unordered map for JIT RestoreCandidates...”
+Seen in melonDS: `InvalidateByAddr` unlinks a block but stores it in `RestoreCandidates`. `CompileBlock` first checks for a match: originally on address plus an instruction-by-instruction compare, later on xxHash3 `InstrHash` with `PseudoPhysicalAddr` and `LiteralHash` verified (`efb79664`, “makes Golden Sun burn a little slower through the JIT memory”). The custom 2-way lossy hash table was replaced by `std::unordered_map` in `4299ef5f`, which is still the form today. 40b88ab0 2019-10 “new block cache and much more...” · efb79664 2020-05 “use instr hash as key for restore candidates...” · 4299ef5f 2020-08 “use unordered map for JIT RestoreCandidates...” • Also seen in ares (ares-078): `SH2::Recompiler::block()` first runs `measure()`, which copies the block's opcodes into `instructions[]` until it reaches a terminal opcode (`isTerminal` comes from the same decoder table). It then computes `XXH3_64bits(...) ^ address` and looks it up in a `hashset<BlockHashPair>` before calling `emit()`. Self-modifying code or code that is reloaded and then rewritten unchanged gets its old block back. TRAPA and SLEEP were reclassified as block terminators so the measured boundaries match. 600964d72 2023-03 “sh2: reuse previously recompiled blocks”
 
 ### melonds-092 — Direct-mapped lookup tables instead of hashing for dense keys
 Lens: lookup-tables · Source: melonDS
@@ -859,12 +859,12 @@ Watch out: —
 Seen in melonDS: `SPU::Channel::Run` now returns immediately for PCM/ADPCM channels with `Length + LoopPos < 16`, which hardware treats as silent. In `Wifi::USTimer` (which runs every microsecond), all TX/RX state-machine work is wrapped in `if (!(IOPORT(W_PowerState) & 0x300))`, and power-down is emulated with a `USUntilPowerOn` countdown. While a game has WiFi asleep, the hot timer does almost nothing. a32d997e 2020-08 “SPU: don't process channels with len<4” · 0a1fb5ae 2022-02 “Wifi power saving, hopefully enough!”
 
 ### melonds-108 — Precompute fixed-point weight tables for interpolation
-Lens: lookup-tables · Source: melonDS
+Lens: lookup-tables · Source: melonDS · Also: ares
 Principle: Interpolation kernels such as cosine and cubic evaluate transcendental or polynomial functions of the fractional position. Quantize the fraction to 8 bits and precompute the weights once as fixed-point integers. Per-sample work becomes a table load and a few integer multiply-adds.
 Why it is faster: —
 Applies elsewhere: audio resamplers (libsamplerate, SNES Gaussian tables), bicubic image scaling in libswscale, gamma/sRGB LUTs, and sine tables in DSP firmware on microcontrollers without an FPU.
 Watch out: —
-Seen in melonDS: The audio interpolation option builds `s16 InterpCos[0x100]` (`(1 - cos(i·π/255)) · 0x2000`) and `s16 InterpCubic[0x100][4]` (Catmull-Rom weights in 1:1:14 fixed point) in `SPU::Init`. Each channel indexes them with `(Timer >> 8) & 0xFF`. Today they are `constexpr std::array` built by lambdas at compile time, alongside a 512-entry SNES Gaussian table. 2df6b4fd 2021-08 “Audio interpolation (#1176)”
+Seen in melonDS: The audio interpolation option builds `s16 InterpCos[0x100]` (`(1 - cos(i·π/255)) · 0x2000`) and `s16 InterpCubic[0x100][4]` (Catmull-Rom weights in 1:1:14 fixed point) in `SPU::Init`. Each channel indexes them with `(Timer >> 8) & 0xFF`. Today they are `constexpr std::array` built by lambdas at compile time, alongside a 512-entry SNES Gaussian table. 2df6b4fd 2021-08 “Audio interpolation (#1176)” • Also seen in ares (ares-072): v114r13 added `SPU::gaussianConstructTable()` for the PS1. It builds a 512-entry kernel from `sin` and `cos` terms, scales it so that the sum is `0x7f80` across each set of four phases, and rounds into `gaussianTable[]`. The SNES DSP's hard-coded constants were replaced by the same kind of generation. 46bba9b79 2020-07 “Update to ares v114r13 release.”
 
 ### melonds-109 — Batch draw calls by sorting on a state key
 Lens: gpu-rendering · Source: melonDS
@@ -1019,12 +1019,12 @@ Watch out: —
 Seen in melonDS: `GPU.h` now declares `alignas(u64) u8 VRAM_A[128*1024]` through `VRAM_I`, as well as `Palette`, `OAM` and `VRAMFlat_Texture`, because renderers read them as `u16`/`u32`/`u64`. In `NDS.h`, the two-word divider and sqrt registers (`DivNumerator[2]` and others) are `alignas(u64)` because they are accessed as one 64-bit value. cbd65a13 2023-12 “Add `alignas` specifiers to some arrays based on how they're accessed (#1933)”
 
 ### melonds-128 — Pass strings by const reference
-Lens: allocation · Source: melonDS
+Lens: allocation · Source: melonDS · Also: Flycast
 Principle: Passing `std::string` by value copies it, and if it is longer than the small-string buffer that means a heap allocation and a free on every call. A `const&` parameter costs one pointer. When you need a modified copy, build a new local instead of mutating the parameter.
 Why it is faster: —
 Applies elsewhere: path-handling helpers in C++ tools, `&str` instead of `String` in Rust APIs, `string_view` in parsers.
 Watch out: —
-Seen in melonDS: Constructors and methods of `FATStorage`, `DSi_MMCStorage`, `ARCodeFile`, `Savestate` and `Platform` took `std::string` by value and now take `const std::string&`. `InjectFile` used to reassign `path = "0:/" + path`. It now builds `std::string prefixedPath("0:/"); prefixedPath += path;`. 4b170b94 2023-04 “pointless micro optimisations”
+Seen in melonDS: Constructors and methods of `FATStorage`, `DSi_MMCStorage`, `ARCodeFile`, `Savestate` and `Platform` took `std::string` by value and now take `const std::string&`. `InjectFile` used to reassign `path = "0:/" + path`. It now builds `std::string prefixedPath("0:/"); prefixedPath += path;`. 4b170b94 2023-04 “pointless micro optimisations” • Also seen in Flycast (flycast-117): The INI writer copied every `ConfigSection` and `ConfigEntry` (`ConfigSection section = section_it->second;`). It now uses `const auto&`, and `get_string()` returns `const string&`. The block manager loops over `blkmap` by `const auto&`. clang-tidy's `performance-unnecessary-value-param` changed `AddRef(RuntimeBlockInfoPtr)` and others to take const references. 834082519 2019-09 “ini: use reference to avoid copies. simplify” · bad10bae2 2019-09 “...Use const ref to avoid copies” · fe17d79e8 2021-03 “clang-tidy: run performance-unnecessary-value-param”
 
 ### melonds-129 — Serialise into a memory buffer, then write once
 Lens: io · Source: melonDS

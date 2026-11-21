@@ -1,4 +1,4 @@
-# Lens: laziness (362 techniques)
+# Lens: laziness (329 techniques)
 
 Not doing work: deferral, dirty flags, early exit, skip-when-unchanged, compute on demand.
 
@@ -6,24 +6,16 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 
 - ares-004 | Poll idle waits at a coarse interval | While a component waits for a wake-up condition, check the condition every N units instead of every unit.
 - ares-008 | Synchronize at the coarsest grain that preserves correctness | Each synchronization point costs a switch.
-- ares-013 | Decode on demand, cache it, invalidate on write | Keep a decoded copy of data that is stored in an awkward format, with a valid flag per entry.
-- ares-015 | Hoist per-line invariants out of per-pixel code | Values that depend only on settings latched for the current line or batch should be computed once at the start of that line and stored in fields.
 - ares-016 | Build each line's working set once before the per-pixel pass | Scan a large table once per batch to extract the few entries that apply, decoding their attributes at the same time.
-- ares-028 | Skip output work when nobody will see it | When running faster than the display can show, still advance the simulation but skip rendering most frames.
 - ares-042 | In a fast mode, skip eager sync for components that rarely talk | Checking every optional component after every step is expensive when most of them rarely interact.
 - ares-063 | Model only the cost of a cache, not its contents | When a fast path only needs a cache's timing effect, track just the tags and valid bits.
 - ares-075 | Skip an expensive init phase, but charge its time | A long hardware or setup sequence can often be skipped when its only effect is reaching a known state.
 - ares-077 | Lazy invalidation with dirty bitmasks and generation counters | Don't evict cached entries the moment a write happens.
-- ares-079 | Invalidate the smallest unit that changed | If a write affects one entry, drop that entry and not the container around it.
 - ares-114 | Accumulate cycle counts and flush only where they can be observed | Timing only has to be correct at points where something else can see it.
-- ares-124 | Materialize bookkeeping state only for code that reads it | Pipeline bookkeeping (current PC, next PC, state flags) is only read by branches and by slow-path helpers.
 - ares-136 | Turn per-access timing calls into a counter add | Inside compiled code, a full timing step on every bus access can trigger synchronization in the middle of a block.
 - ares-162 | Render whole scanlines, and skip rendering frames that won't be shown | A scanline-granular renderer draws each layer in one tight loop per line, which is much cheaper than drawing per dot.
-- curl-033 | Do not compute results that the current request will ignore | Before a costly step, ask whether its output is consumed under the current configuration or request type; if not, skip it.
-- curl-034 | Gate debug-only computation, not just debug output | If a computation exists only to feed verbose logging or debugging, check the log level before computing it, check it in one central place, and compile it out entirely in builds without verbose support.
 - curl-035 | Prescan cheaply, and fast-path the input that needs nothing | Before an expensive transform (normalization, escaping, glob expansion, formatting a name), run a cheap read-only test that decides whether the transform is needed.
 - curl-036 | Add optional pipeline stages and bookkeeping only when a consumer exists | Insert writer layers, filters, queries and state-tracking structures only when the feature that needs them is active; initialize protocol state at the moment the protocol is actually switched to.
-- curl-037 | Act only when state actually changes | Return early when a setter is asked to set the current value, log on transitions rather than on every call, redraw only when the displayed value moves, toggle process-wide settings only when the next item…
 - curl-038 | Short-circuit setup on objects that are already prepared | When an object comes from a pool or cache, the setup it already went through (name resolution, per-connection info, handler selection) is done; return early instead of repeating it.
 - curl-039 | Reset logically and skip teardown that frees nothing | Reset a container by setting its count to zero when stale slots are never read, clear a string buffer by writing its first byte, and do not walk a structure in a destructor if walking it frees nothing.
 - dolphin-018 | Skip the flush when nothing changed | Periodic or shutdown-time persistence often rewrites data that hasn't changed.
@@ -32,20 +24,20 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-046 | Skip output you won't show, but still parse the stream | When the consumer can't keep up, drop whole frames of output while still processing the side effects that keep the state machine correct.
 - dolphin-052 | Derive a ticking counter from a start timestamp when it is read | If a value changes at a fixed rate, don't update it on every tick.
 - dolphin-053 | Parse a container's index only when someone asks for a file | Opening something to list it often needs only a header.
-- dolphin-077 | Materialize derived state only for consumers that read it | Keeping a mirrored variable up to date after every step, such as a program counter or a cursor, costs a store each time even though few readers look at it.
+- dolphin-077 | Materialize derived state only for consumers that read it | Keeping a mirrored variable up to date after every step, such as a program counter or a cursor, costs a store each time even though few readers look at it. (also: ares)
 - dolphin-101 | Revalidate a cache only after events that could change its source | Re-hashing cached data on every use is expensive.
 - dolphin-106 | Key a compile cache on exactly the inputs that change the output | If a cache key includes state that doesn't affect the generated artifact, identical artifacts get compiled again under different keys.
 - dolphin-111 | Persist expensive compiled artifacts across runs | Compiling and linking GPU programs at first use causes visible hitches.
-- dolphin-126 | Diff settings and invalidate only what each change affects | Throwing away a whole cache whenever a settings dialog opens, or on any state reload, discards data that is still valid.
+- dolphin-126 | Diff settings and invalidate only what each change affects | Throwing away a whole cache whenever a settings dialog opens, or on any state reload, discards data that is still valid. (also: Flycast)
 - dolphin-127 | Reuse a cached resource that is a superset of the request | Requiring an exact match on every attribute causes needless re-creation when an existing entry can already serve the request.
 - dolphin-143 | Record bookkeeping in a side table, materialize it only on the slow path | Some state is needed only when something goes wrong, such as which instruction caused a fault.
 - dolphin-170 | Cache derived objects next to the cache entry that produces them | If every cache hit is followed by a second lookup for a derived object, store the derived object in the same entry.
 - dolphin-177 | Reject discarded work before preparing for it | If an input will be thrown away, such as primitives that are fully culled or vertices flagged as skipped, test for that before setting up state for it.
 - dolphin-188 | Schedule events instead of polling every time slice | If a subsystem checks a "something changed?" condition on every scheduler tick, put that work on the scheduler's event queue at the moment the change happens.
-- dolphin-212 | Skip expensive work whose consumer is disabled | Before computing something only an optional feature uses, check whether that feature is on.
+- dolphin-212 | Skip expensive work whose consumer is disabled | Before computing something only an optional feature uses, check whether that feature is on. (also: Flycast)
 - dolphin-213 | Defer construction until first use | Wrap expensive-to-build members in a lazy holder (value or thunk) that computes on first access.
 - dolphin-222 | Dirty flags to skip rescans; periodic instead of per-frame checks | When an expensive overlap search or validation only matters after a specific event, set a flag on that event and skip the search when the flag is clear.
-- dolphin-227 | Derive counters from timestamps instead of ticking them | A counter that advances at a known rate does not need a periodic event to update it.
+- dolphin-227 | Derive counters from timestamps instead of ticking them | A counter that advances at a known rate does not need a periodic event to update it. (also: Seastar)
 - dolphin-238 | Flag a cache stale, and drop it only at the next sync point | Invalidating a cache on every write means you pay to rebuild it again and again, even when nobody reads it in between.
 - dolphin-253 | Read settings once when they change, not on every hot-path call | A settings lookup that takes a lock, searches maps and parses a string is cheap on its own but costly inside a per-tick function.
 - dolphin-255 | Use liveness to skip computing results nobody reads | Side outputs such as carry flags, exact rounding and NaN canonicalization cost extra instructions.
@@ -80,33 +72,27 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-220 | Wait at the point of use, not the point of issue | If an operation runs asynchronously, block only when something actually reads a result it is still producing.
 - duckstation-221 | Defer expensive reads until someone asks for the result | If a value is updated far more often than it is read, and producing it is costly (device I/O), set a "stale" flag on update and compute the value on demand.
 - duckstation-222 | Defer heavyweight callbacks out of the fast path to a safe point | If an event fires in the middle of a tight loop, such as from a side effect inside JIT code, handling it there forces the loop to exit early.
-- duckstation-246 | Check for a change before doing the expensive update | Compare the new value with the old one and return early if they match, or collect change flags and notify once.
+- duckstation-246 | Check for a change before doing the expensive update | Compare the new value with the old one and return early if they match, or collect change flags and notify once. (also: curl)
 - duckstation-247 | Run speculative re-execution only when its input actually changed | Speculative schemes such as rollback, runahead and optimistic UI pay a large cost each time they are invalidated.
 - duckstation-256 | Rebuild compiled artifacts only when an input they depend on changes | Pipelines, shaders and query plans are expensive to build.
 - duckstation-260 | Defer startup work until first use, and make it thread-safe with call_once | Work done at construction is paid even when the feature is never used.
 - duckstation-264 | Cache values that are expensive to derive and rarely change | If a value such as a locale object, a native window handle or a file path is costly to compute but changes only on a known event, compute it once, store it, and invalidate it only on that event.
 - duckstation-267 | Invalidate only the parts that changed | A full model reset forces every view to rebuild its layout and caches.
-- duckstation-291 | Invalidate only the affected cache entries instead of flushing everything | When a small memory range changes, invalidate only the cache lines whose tags match that range.
+- duckstation-291 | Invalidate only the affected cache entries instead of flushing everything | When a small memory range changes, invalidate only the cache lines whose tags match that range. (also: ares)
 - duckstation-297 | Skip computing an output that will be multiplied by zero | If a stage's result only feeds a gain or weight that is currently zero, skip the stage.
 - duckstation-311 | Answer reads by computing a projected value instead of advancing the simulation | If a counter grows linearly between events, a read can return `counter + elapsed * rate` without mutating state.
 - duckstation-313 | Predict when the next interesting event can happen instead of stepping one unit at a time | Fine-grained stepping "in case something happens" wastes most iterations.
 - duckstation-319 | Defer expensive setup until it is actually needed | Don't do work in a constructor or at startup for a resource that may never be used.
-- flycast-009 | Skip whole frames of expensive output work under load | When the producer can't keep up, keep running the simulation but drop the costly presentation work on a fixed ratio.
 - flycast-084 | Watch address ranges cheaply and act only when dirty | Rather than re-presenting a buffer every frame, set a dirty flag when a write lands inside the watched range, using a test of `!dirty` first so most writes pay one load and a branch.
-- flycast-091 | Compile variants on first use and memoize them by feature key | When a program has many specialized variants (shaders, query plans, templates), pack the features that select a variant into an integer key and look it up in a hash map.
 - flycast-092 | Don't maintain data for a feature that is switched off | If a derived resource only matters when a feature is on, add the feature flag to its dirty check.
-- flycast-133 | Only tear down what actually changed | When a setting changes, compare the old and new values at the level that matters, and do the full reinit only when that level differs.
-- flycast-147 | Skip work the current mode never reads | Before an expensive pass, check whether the active configuration consumes its output.
-- flycast-150 | Rebuild derived resources only when their source is dirty | Keep a dirty flag on each source table, then regenerate the derived texture or compiled code once, just before it is next used.
 - flycast-186 | Fault in content by segment, tracked with a bitmap | Loading and decrypting a whole image up front makes startup proportional to image size.
 - flycast-190 | Turn on the expensive mode only when the guest actually needs it | Full address translation slows every memory access.
 - flycast-200 | Schedule polling only when the device exists, and poll less often | A periodic poll event on the emulated timeline costs time even when nothing listens.
-- flycast-202 | Allocate large GPU buffers when the first frame needs them | Allocating big buffers at renderer init wastes memory and init time if they are never used, for example in menus or with other backends.
 - haproxy-032 | Make unused features cost nothing: one cheap test at the call site | When an optional subsystem (filters, tracing, quotas, reuse, TLS options) is not configured, skip every call, argument evaluation and counter update for it behind a single predictable flag test.
 - haproxy-033 | Re-run only what changed: gate re-evaluation on change flags | On each wakeup, check cheaply what actually changed (event cause, buffer flags, relevant inputs) and re-run only the stages whose inputs changed; keep built results until something invalidates them.
-- haproxy-034 | Test for "nothing to do" before calling the expensive routine | Before calling cleanup, send, GC, formatting or encoding code, test cheaply whether there is anything for it to do (empty list, nothing queued, nothing freed, no room for output) and return early.
+- haproxy-034 | Test for "nothing to do" before calling the expensive routine | Before calling cleanup, send, GC, formatting or encoding code, test cheaply whether there is anything for it to do (empty list, nothing queued, nothing freed, no room for output) and return early. (also: PostgreSQL)
 - haproxy-035 | Compute only what the consumer will use, when it uses it | Do not fetch, convert or decode data on the critical path that only some outputs, debug modes or rare fallbacks need; obtain it at the moment of first use.
-- haproxy-036 | Derive values when read instead of maintaining them on every write | If a value is written constantly but read rarely, or can be computed from state that exists anyway, store the raw inputs and compute the value on read.
+- haproxy-036 | Derive values when read instead of maintaining them on every write | If a value is written constantly but read rarely, or can be computed from state that exists anyway, store the raw inputs and compute the value on read. (also: PostgreSQL)
 - haproxy-037 | Order checks by cost: cheap rejection before expensive work | Run the inexpensive test that usually decides the outcome (length, a precomputed bound, a literal parse, a collision check) before the costly operation (string compare, copy, DNS, object construction).
 - haproxy-038 | Skip the search when state already proves the answer | If existing state guarantees the result of a search (all candidates saturated, a scan just failed and nothing changed), return that result directly or back off instead of searching again.
 - haproxy-039 | Give the common or trivial case its own minimal path | Detect inputs that need much less than the general algorithm (count only, full and contiguous, never-emitted variants) and run a tight specialized loop, falling back to the generic code for the rest.
@@ -132,7 +118,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mesen2-005 | Record summary bits while loading data, then skip empty passes | While data is being fetched anyway, keep a cheap aggregate flag: "does any item have property X?".
 - mesen2-023 | Compute derived data only when someone consumes it | Instrumentation that builds artifacts on every event (disassembly, state snapshots, trace rows) should check first whether any view or logger is active.
 - mesen2-024 | Catch up secondary components lazily on access | Rather than stepping every subsystem in lockstep, let a secondary component fall behind.
-- mesen2-031 | Skip presentation work for frames nobody will see | When simulation runs faster than the display can show it, keep simulating every step but skip the rendering and output stages for frames that will never be displayed.
+- mesen2-031 | Skip presentation work for frames nobody will see | When simulation runs faster than the display can show it, keep simulating every step but skip the rendering and output stages for frames that will never be displayed. (also: ares)
 - mesen2-035 | Make incremental caches stop at the first valid entry | When extending a cache by walking forward from a point, stop as soon as you reach an entry that is already valid.
 - mesen2-046 | Skip idle subsystems with a "needs work" flag | A component that is idle most of the time should not be stepped every tick.
 - mesen2-047 | Catch up on demand and jump straight to the next event | Don't step a simulated component every cycle.
@@ -158,11 +144,11 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-018 | Rebuild lazily on read with a dirty flag, then cull early | When writes are frequent and bursty, mark the data dirty and rebuild a compact list on the next read instead of maintaining it on every write.
 - mgba-027 | Gate periodic updates on liveness and use infinite-deadline sentinels | Skip updates for components that are inactive or silent.
 - mgba-029 | Decouple simulation from presentation and drop frames | Keep the simulation exact but let rendering, the most expensive stage, skip frames.
-- mgba-030 | Filter at the source so disabled logging and checks cost nothing | Check log levels before formatting or handing messages to another thread.
+- mgba-030 | Filter at the source so disabled logging and checks cost nothing | Check log levels before formatting or handing messages to another thread. (also: curl, Seastar)
 - mgba-034 | Prove a busy-wait is side-effect-free, then sleep to the next event | A polling loop that touches no external state can only exit when an external event fires.
 - mgba-037 | Coalesce writes with a coarse dirty bitmap | Track modifications at chunk granularity with one bit per chunk, and dedupe at write time: if the bit is already set, return.
 - mgba-043 | Detect parameters that make an operation a no-op | Check for identity settings such as scale 1, alpha 1.0 or an empty filter, and take the cheap path instead of computing a result that equals the input.
-- mgba-057 | Under load, drop presentation but keep simulating | Decouple simulation from output. Under load, keep the authoritative state updates and skip rendering. Make that decision locally in the producer, without taking locks.
+- mgba-057 | Under load, drop presentation but keep simulating | Decouple simulation from output. Under load, keep the authoritative state updates and skip rendering. Make that decision locally in the producer, without taking locks. (also: Flycast)
 - mgba-060 | Push updates instead of polling on a timer | Repaint exactly when new data arrives. A polling timer wastes work when nothing has changed and adds latency when something has.
 - mgba-061 | Idempotent setters and one invalidate per batch | Return early when a setter's value hasn't changed, and apply many mutations before a single redraw.
 - mgba-063 | Defer updates to invisible views | Queue changes destined for a hidden view and apply them when it is shown.
@@ -171,8 +157,8 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-079 | Bound event frequency by the observation rate, not the simulated rate | If a high-frequency process is only observed at discrete points, schedule one event at the next point where its effect becomes visible.
 - mgba-080 | Classify state as "can't affect output" and short-circuit it | Track a cheap derived flag that says whether a unit's output can change (silent, constant or active).
 - mgba-081 | Memoize output units on a fingerprint of their inputs | If an output unit (a row, tile or component) is a deterministic function of a small input set, snapshot those inputs.
-- mgba-082 | Compare before storing so unchanged writes don't invalidate anything | A spurious invalidation (cache flush, notification, re-render) usually costs far more than one comparison.
-- mgba-083 | Set a dirty flag on write and rebuild derived data on read | When a derived table depends on inputs that change more often than the table is consumed, don't rebuild it on every change.
+- mgba-082 | Compare before storing so unchanged writes don't invalidate anything | A spurious invalidation (cache flush, notification, re-render) usually costs far more than one comparison. (also: PostgreSQL)
+- mgba-083 | Set a dirty flag on write and rebuild derived data on read | When a derived table depends on inputs that change more often than the table is consumed, don't rebuild it on every change. (also: Flycast)
 - mgba-086 | Don't draw what an opaque layer will cover | Before rendering a lower layer, subtract the regions an opaque upper layer will overwrite.
 - mgba-089 | Bypass generic dispatch when the target is known | A hot internal path that always hits the same sink shouldn't go through a polymorphic, decode-everything entry point.
 - mgba-104 | Coalesce UI mutations into the paint pass; remove items in bulk or from the end | Updating a widget per item triggers layout and paint per item.
@@ -205,19 +191,15 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-223 | Detect spin-waits and replace them with sleeping until the awaited event | Work out when a loop is only polling for an external event, meaning it has the same state each iteration and no side effects.
 - mgba-227 | Track dirty output units and snapshot their inputs | Keep a dirty bitset over output units, here scanlines, together with a snapshot of each unit's inputs.
 - mgba-228 | Keep a compacted active subset, rebuilt only on mutation | Iterating a sparse array of slots, most of them inactive, wastes time on every pass.
-- netty-024 | Create rarely used members and resources on first use | Do not allocate helpers, queues, views, native scratch memory or OS handles in a constructor if most instances never use them.
 - netty-025 | Specialise for the common cardinality: zero, one, then many | Most lists of listeners, header values or query parameters hold zero or one element.
 - netty-026 | Return the input unchanged when no transformation is needed | Before escaping, decoding, case-converting or encoding, scan for the first character that needs work.
 - netty-027 | Do not produce completion results nobody will read | If a caller does not care about the outcome of an operation (fire-and-forget writes), do not allocate a future or promise or register a listener for it.
-- netty-028 | Skip validation the context already guarantees, and do expensive variants only where required | Validate once at a trust boundary, remember that it was done (a flag, or the type), and skip repeated checks downstream.
-- netty-029 | Put the cheapest discriminating test first, and short-circuit empty cases | Before an expensive operation, test for the trivial answer: same reference, nothing to do, an empty collection, a cached hash mismatch, or a status code that rules the case out.
 - netty-030 | Track which items have pending work instead of scanning all of them | Keep a set or list of the entities that actually have something to do (streams with pending writes, dirty pages) and visit only those, instead of iterating every entity on each event.
-- netty-031 | Emit results as they are produced instead of staging them in a collection | Pass each decoded or produced item downstream immediately, rather than collecting the whole batch in a list and iterating it afterwards.
 - netty-032 | Defer static tables and probes to first use with holder classes | Move large lookup tables, reflective lookups and capability probes used only by rarely called features into separately initialised holders, so they are built on first use rather than at class or module load.
 - netty-033 | Keep startup paths cheap: no expensive probes, regexes or reflection, and overlap slow initialisation | At startup, decide platform capabilities from cheap metadata before running expensive probes.
 - nginx-023 | Let configuration and invariants delete runtime work | If configuration proves a runtime decision cannot change the outcome, or an upstream stage already guarantees a condition, skip the decision or check entirely; and if a dynamic value resolves to something…
 - nginx-024 | Exit early when there is nothing to do; hoist invariant tests out of loops | Test for empty input before walking structures, stop comparing once a match is found, never issue a send, frame or file for zero bytes, and move loop-invariant conditions outside the loop.
-- nginx-025 | Serve a view of data you already hold instead of copying, re-reading or regenerating it | Answer partial requests by narrowing a buffer's window, inspect bytes without consuming them, keep strings that the owner already holds instead of duplicating them, and make decisions with data already in the…
+- nginx-025 | Serve a view of data you already hold instead of copying, re-reading or regenerating it | Answer partial requests by narrowing a buffer's window, inspect bytes without consuming them, keep strings that the owner already holds instead of duplicating them, and make decisions with data already in the… (also: PostgreSQL)
 - nginx-026 | Create rarely used expensive objects on first demand, and order setup so libraries can skip work | Do not precompute a costly object per instance at startup if few requests need it: build one on first use and share it.
 - nginx-027 | Delay a big allocation until enough input has arrived, then size it to the input | For expensive per-request state (compressor windows, codec contexts), wait until you know how much data there is, shrink parameters until they just cover it, and then allocate and process in one go while the…
 - nginx-028 | Ignore small deadline changes: re-arm a timer only when it moves past a tolerance | When an activity timeout is pushed forward on every read or write, keep the old deadline if the new one differs by less than a threshold.
@@ -230,9 +212,9 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-017 | Validate a cached artifact against only the input bytes it used | If a cached result (compiled code, a rendered fragment) depends on only part of a large input, record which ranges were actually consumed.
 - pcsx2-019 | Canonicalize cache keys by dropping state that doesn't matter | When compiled code is keyed by the full machine state at entry, irrelevant differences such as already-expired stall counters create needless duplicate entries.
 - pcsx2-063 | Advance unobserved state with a cheaper stand-in, in coarse steps, or not at all | If an entity's output is discarded but some of its side effects are still visible, write a stripped-down update that keeps only those effects and skips the expensive computation.
-- pcsx2-102 | Hoist per-draw constants out of per-pixel code | Anything that depends only on per-batch parameters should be computed once when the batch starts, not inside the per-element kernel.
+- pcsx2-102 | Hoist per-draw constants out of per-pixel code | Anything that depends only on per-batch parameters should be computed once when the batch starts, not inside the per-element kernel. (also: ares)
 - pcsx2-103 | Detect invariants early and pick the cheaper variant | When a check made before dispatch proves a general feature has no effect, such as a value clamped to a constant, flip the selector bits so the specialised kernel without that feature runs.
-- pcsx2-106 | Memoise expensive derived maps by a packed key | If a costly structure is a pure function of a few small parameters, pack those parameters into one integer key and cache the result in a hash map.
+- pcsx2-106 | Memoise expensive derived maps by a packed key | If a costly structure is a pure function of a few small parameters, pack those parameters into one integer key and cache the result in a hash map. (also: Flycast)
 - pcsx2-118 | Have the blocker wake the waiter instead of polling | A waiter that reschedules itself every few ticks to check a condition can spin through thousands of useless wake-ups, each with its own dispatch overhead.
 - pcsx2-132 | Drop checks that rarely pay off | A "compare before copy" or a full-data analysis only pays if it often lets you skip work.
 - pcsx2-135 | Build expensive resources only when the feature is on | Startup and mode switches pay for every resource built eagerly, even ones that are never used.
@@ -249,18 +231,9 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-241 | Reschedule a periodic event only while something consumes it | A self-rescheduling event that fires whether or not its consumer is active turns into a busy loop that steals time from real work.
 - pcsx2-266 | Compute an expensive predicate once per unit of work | If a costly test is called from several places while handling one item, store its result in a `std::optional` member and reset it when the next item starts.
 - pcsx2-281 | Re-check flush conditions only when an input actually changed | If a check that decides whether to flush pending work runs on every incoming command, gate it on cheap change detection: a different primitive class, a dirty-register bit, or the first vertex that actually…
-- postgresql-045 | Allocate identities, state and resources on first real use | Do not assign expensive identifiers or build per-transaction or per-node state up front; use a cheap local placeholder and create the real thing only when it is first needed.
-- postgresql-046 | Check a cheap "anything to do?" flag before the expensive path | Put a flag or counter where the caller can test it without dispatch, and return before doing any work when it shows nothing changed, nothing is pending or the feature is off.
-- postgresql-047 | Compute only what some consumer can observe | Before doing per-item or per-column work, check whether anything downstream will read the result: skip unused captures, unchanged generated columns, unread columns and output that only EXPLAIN would print.
-- postgresql-048 | Answer from metadata before touching the payload | Decide what you can from sizes, headers and summaries (lengths for inequality, raw size before decompression, availability flags) before fetching, decompressing or detoasting a large value, and when you must…
-- postgresql-049 | Pass data through instead of copying, converting or re-fetching it | When a consumer only reads data, or the data is already in the needed shape, hand over a view or the original pointer; skip copies when a transformation is a no-op, and do not re-fetch what an earlier step…
-- postgresql-050 | Build the final form directly instead of through intermediate representations | Avoid constructing a structure only to serialize and reparse it, converting typed values through text, or sizing output with a separate pre-pass; write directly into the destination with a cheap upper bound…
-- postgresql-051 | Stop as soon as the answer is known | Exit loops and evaluations the moment the result is determined: after finding the item, after enough matches, or when one element forces the outcome.
-- postgresql-052 | Skip writes that would not change anything | Compare before writing: do not rewrite a row, send a reply or rewrite a block whose value is unchanged.
 - postgresql-053 | Change schemas in metadata instead of rewriting data | When a schema change does not alter stored bytes (adding a column with a constant default, a binary-compatible type change), record it in metadata and synthesize values on read, instead of rewriting every row…
 - postgresql-054 | Do not create auxiliary structures that cannot be used | Skip creating side tables, indexes or subsystems when the schema or size proves they will never be needed, and probe directly when an auxiliary map would cost more than the data.
 - postgresql-055 | Do not optimize or cache work that runs only once | Optimization passes and caching layers pay off only when their result is reused; for one-shot statements and expressions, use a lean path with the same API and no optimization or caching overhead.
-- postgresql-056 | Move work from the frequent path to the rare one, and compute on demand | If an operation runs often and its result is read rarely, store raw inputs on the hot path and do the processing at read time; prefer a lazy walk at the decision point to collecting data eagerly at every level.
 - postgresql-057 | Drop work the consumer will discard, at the source | When a consumer will ignore a class of records or an entire batch (empty transactions, rewrite-internal inserts, already-aborted transactions), filter it where it is produced instead of buffering, sending or…
 - postgresql-058 | Use the cheapest check and semantics the data's provenance allows | When data comes from a trusted producer or only needs a weaker guarantee, skip full validation, use byte-order comparison instead of locale collation, and skip transcoding when encodings already match.
 - ppsspp-002 | Invalidate only when the value actually changed | A write to a configuration field doesn't mean the configuration changed.
@@ -292,16 +265,16 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ppsspp-253 | Record a summary while producing data, and skip passes it rules out | If later passes each act on only a few kinds of element, have the producer OR a bitmask of the kinds it emitted.
 - ppsspp-258 | Re-validate cached results by hash only when the invalidation is ambiguous | Store a cheap hash of the source each cached artifact was derived from.
 - ppsspp-265 | Use an epoch counter to validate a cache once per sync period | Data can only change at known synchronization points.
-- ppsspp-269 | Generate output directly in its final format | If a stage writes data in an intermediate format that the next stage just converts again, have the first stage write the final layout into the final buffer.
+- ppsspp-269 | Generate output directly in its final format | If a stage writes data in an intermediate format that the next stage just converts again, have the first stage write the final layout into the final buffer. (also: PostgreSQL)
 - ppsspp-272 | Check whether a log line is enabled inline, before formatting it | A disabled log call should cost one load and a compare at the call site.
 - ppsspp-277 | Cache expensive layout results, and look them up without allocating | Word wrapping measures every prefix, so re-running it every frame is wasteful.
 - ppsspp-280 | Compile or skip operations that have no observable effect | An operation the emulator gives no effect still costs a slow fallback if the fast path doesn't recognize it.
 - ppsspp-281 | Don't hash what you know changes every time, and dedupe linear-scan lists | Change detection on data that is new by definition wastes work and pollutes secondary caches.
 - ppsspp-290 | Dirty bits per uniform group | Track which state groups changed since the last upload in a 64-bit mask, and rebuild only those parts of the constant buffer.
-- redis-038 | Run the cheap, decisive check first and exit early | Before doing expensive work, test the cheap conditions that make it pointless: nobody is listening, the collection is empty, the offset is past the end, an absorbing value has been reached, the user has every…
+- redis-038 | Run the cheap, decisive check first and exit early | Before doing expensive work, test the cheap conditions that make it pointless: nobody is listening, the collection is empty, the offset is past the end, an absorbing value has been reached, the user has every… (also: Netty, Seastar, Tokio)
 - redis-039 | Skip work that nobody observes and updates that change nothing | Do not produce output nobody will read. Do not fire invalidations, log writes or durability work for operations that did not change state. Detect identity updates (same value, same owner, empty input) and do…
 - redis-040 | Operate on the native encoding; never decode just to re-encode or compare | If a value is stored compactly (as an integer, or in a packed array), consumers should handle that form directly: compare integers as integers, write them to disk as integers, hash them from a stack buffer.
-- redis-041 | Stream results straight to the output; skip intermediate collections | "Collect into a temp list or dict, then iterate it to emit" doubles the passes and allocates per element.
+- redis-041 | Stream results straight to the output; skip intermediate collections | "Collect into a temp list or dict, then iterate it to emit" doubles the passes and allocates per element. (also: Netty)
 - redis-042 | Hoist loop-invariant and duplicated small computations | Small pure helpers (`strlen`, header-length decode, digit count, slot hash) look free but add up when called N times per command or twice per value.
 - redis-043 | Make disabled features and instrumentation cost nothing | Accounting, tracing and safety hooks that matter only when a feature is enabled should be skipped behind a cheap flag, installed only around the code they guard, and run at the coarsest granularity that still…
 - redis-044 | Remove steps the semantics do not require | Ask what each step is for in this context.
@@ -319,17 +292,13 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - redis-056 | Compute serialized size with a dry-run serializer, not by writing it somewhere | To learn how big something will be once serialized, let the serializer accept a NULL sink and return byte counts, instead of writing to /dev/null and asking for the file position.
 - redis-057 | Format the body first, then prepend the header into reserved room | When a variable-length prefix depends on the body's length, leave the maximum header space before the body, format the body, then write the prefix right-aligned in front of it.
 - redis-058 | Delete with tombstones; trim approximately at block granularity | Deleting from the middle of a packed block means a memmove plus re-encoding.
-- rocksdb-045 | Construct rarely used state on first use, not up front | An object created on every request should not build maps, heaps, arenas, scratch buffers or helper objects that only rare paths use.
+- rocksdb-045 | Construct rarely used state on first use, not up front | An object created on every request should not build maps, heaps, arenas, scratch buffers or helper objects that only rare paths use. (also: Netty, Seastar)
 - rocksdb-046 | Defer loading data until it is used, and fetch only the part asked for | Keep enough metadata (first key, handles, sizes) to order or filter items without loading their payload.
-- rocksdb-047 | Skip work whose result has no consumer | Some steps exist only to feed one consumer: a log, a compressor, a verifier, a queued job.
+- rocksdb-047 | Skip work whose result has no consumer | Some steps exist only to feed one consumer: a log, a compressor, a verifier, a queued job. (also: curl)
 - rocksdb-048 | Run the cheap or selective check first, and do expensive preparation only after it passes | Order conditions so the cheapest or most selective one runs first, and move setup work (copies, string building, value collection) to after the filter that usually rejects the operation.
-- rocksdb-049 | Stop at the first hit, or once a threshold is reached | If the question is "is there any overlap?" or "are there at least N?", test candidates one at a time and stop as soon as the answer is known, instead of building a full combined view or counting everything.
+- rocksdb-049 | Stop at the first hit, or once a threshold is reached | If the question is "is there any overlap?" or "are there at least N?", test candidates one at a time and stop as soon as the answer is known, instead of building a full combined view or counting everything. (also: PostgreSQL)
 - rocksdb-050 | Don't create empty or no-op artifacts | Before creating a file, switching a buffer or flushing, check that there is something to put in it.
-- seastar-028 | Short-circuit empty and degenerate inputs before building general machinery | Check for the trivial case (empty range, single element, single key, nothing buffered) first, and return the obvious result without setting up the general-purpose path.
-- seastar-029 | Make disabled diagnostics cost one predictable branch, or nothing at all | Test whether logging or debug tracking is enabled before building its arguments, predict that test as false, and compile debug-only bookkeeping out of release builds entirely.
-- seastar-030 | Create expensive, rarely used state on first use, and defer setup to when it is touched | Represent "not used yet" with a trivial constant state, and build heavyweight objects or perform costly setup only when a code path actually needs them.
 - seastar-031 | Pay nothing for features that are off or data that is empty | Gate setup, allocation and serialization on whether the feature is configured, and on whether the data has ever been populated.
-- seastar-032 | Compute refills from elapsed time on demand instead of running a periodic timer | Instead of a background tick that tops up a budget (token bucket, TTL sweep), let each consumer compute what has accrued since the last refill when it actually needs tokens, above a minimum threshold.
 - seastar-033 | Drop work that has already expired before doing it | Keep queued work in an explicit queue that you control, and discard items whose deadline has passed instead of sending or processing them.
 - seastar-034 | Compute only what the caller asked for | When hot callers need one field of an expensive snapshot, provide a narrow getter for that field instead of materializing the whole struct.
 - seastar-035 | Don't redo work already done, or do work that cannot have an effect | Build an output once and reuse it; skip operations whose effect is already in place; skip reads that cannot return data.
@@ -347,22 +316,20 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - snes9x-114 | Run a dependent subsystem only when its state is observed | Let a secondary component lag behind and bring it up to date only when someone reads or writes its shared state, or at a coarse checkpoint.
 - snes9x-119 | Batch rendering until the state actually changes | Record which output lines are pending, and render the whole pending span in one pass only when a state change would make the next lines differ.
 - snes9x-120 | Ignore writes that don't change anything | Before invalidating caches or flushing work in response to a write, compare the new value with the stored one.
-- snes9x-121 | Decode-on-demand cache with write invalidation | Keep decoded copies of source data in a cache, each with a valid flag.
+- snes9x-121 | Decode-on-demand cache with write invalidation | Keep decoded copies of source data in a cache, each with a valid flag. (also: ares)
 - snes9x-135 | Rebuild derived lists only when their source is dirty | If a derived structure (per-row object lists, clip spans) depends on state that rarely changes, keep a dirty flag set by the writers and rebuild only when it is set and someone needs the result.
 - snes9x-137 | Start in the cheap representation, upgrade retroactively | Produce output in the cheaper format by default.
 - snes9x-142 | Decompress a whole block up front, then stream from the buffer | When a consumer reads compressed data through a byte-wise interface, decode the whole requested range into a plain buffer at the start and hand the consumer that buffer.
 - snes9x-143 | Chunked on-demand decoding into a power-of-two ring | For sequential reads of a compressed stream, decode a chunk only when the output ring runs empty, and size the ring as a power of two so wraparound is a mask.
 - snes9x-146 | Patch the dispatch table when configuration changes | If an operation's behaviour depends on a configuration register, install the specialized implementation into the dispatch table when the register is written.
 - snes9x-157 | Skip unchanged input with a shadow copy | Keep a copy of the previous input frame.
-- sqlite-040 | Create expensive resources on first real use | Don't open files, allocate buffers, load pages or build structures when an object is created.
+- sqlite-040 | Create expensive resources on first real use | Don't open files, allocate buffers, load pages or build structures when an object is created. (also: Flycast, Tokio, PostgreSQL)
 - sqlite-041 | Defer the expensive fetch until a row survives filtering | Record where the full record lives, but fetch it only when a column that requires it is actually read.
-- sqlite-042 | Answer from metadata without loading the payload | If the consumer only needs the type, length, null-ness or key of a value, read it from the header and never load the content.
+- sqlite-042 | Answer from metadata without loading the payload | If the consumer only needs the type, length, null-ness or key of a value, read it from the header and never load the content. (also: PostgreSQL)
 - sqlite-043 | Skip derived-state maintenance when the inputs did not change | When an update modifies some fields, redo only the derived work that depends on those fields: indexes, constraints, foreign keys, counters.
-- sqlite-044 | Don't produce what nobody consumes | Audit for work whose results are ignored: statements compiled only to be discarded, validations whose output is unused, objects that can never be used in this mode, and copies or conversions done eagerly for…
+- sqlite-044 | Don't produce what nobody consumes | Audit for work whose results are ignored: statements compiled only to be discarded, validations whose output is unused, objects that can never be used in this mode, and copies or conversions done eagerly for… (also: PostgreSQL)
 - sqlite-045 | Don't encode what you are about to decode | Pass already-decoded values between components instead of serializing them into a record for the callee to parse back.
 - sqlite-046 | Defer work until it is certainly needed, and skip work a later step redoes | Move costly steps past the cheap tests that might make them unnecessary.
-- sqlite-047 | Validate once, at the boundary or on the slow path | If a check's result cannot change between calls, perform it once and skip it on re-entry.
-- tokio-025 | Defer setup and registration until first use | Store only the inputs (a deadline, a config value) at construction, and do the expensive part (registration with a shared driver, allocation, probing, seeding) on first use.
-- tokio-026 | Short-circuit trivial and already-satisfied cases before the general machinery | Check for zero-length requests, already-completed operations, already-expired deadlines and immediately available resources first, and return before spawning, registering, allocating or touching wakers.
+- sqlite-047 | Validate once, at the boundary or on the slow path | If a check's result cannot change between calls, perform it once and skip it on re-entry. (also: Netty)
 - tokio-027 | Re-run work only when it was signalled, and drop signals that cannot matter | Guard expensive re-polls with a "woken/dirty" flag that the notifier sets and the consumer swaps back.
 - tokio-028 | Cheap preflight checks before maintenance, and skip it if another thread is already on it | Before draining a queue or running housekeeping, check an atomic indicator that it is needed.

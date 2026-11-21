@@ -7,7 +7,7 @@ Agent skills for practical optimization, codebase cleanup, and search performanc
 | [perf-aio](skills/perf-aio/SKILL.md) | Performance diagnosis, optimization patterns and graphics guidance |
 | [john-wick](skills/john-wick/SKILL.md) | Cleanup sweeps that find every instance of a code smell; first pass: implicit state machines |
 | [search-console-opportunities](skills/search-console-opportunities/SKILL.md) | Prioritize SEO actions using Google Search Console exports |
-| [perf-opportunities](skills/perf-opportunities/SKILL.md) | Full performance review of a codebase against 4,300+ techniques mined from 21 performance-critical projects; writes an opportunities report |
+| [perf-opportunities](skills/perf-opportunities/SKILL.md) | Full performance review of a codebase against 3,800+ distinct techniques mined from 21 performance-critical projects; writes an opportunities report |
 
 ## Install Perf AIO
 
@@ -74,7 +74,7 @@ Or copy `skills/perf-opportunities/` into your agent's skills directory.
 
 Perf Opportunities reviews a codebase, directory, file or diff for ways to make it faster or lighter, and writes every opportunity it finds to a plain `performance-opportunities.html` report. It reports by default and changes code only when asked.
 
-Each opportunity cites a technique a mature project actually shipped. The library holds 4,308 domain-generic principles mined from the commit histories of Redis, nginx, SQLite, RocksDB, HAProxy, DuckDB, PostgreSQL, Seastar, curl, Netty, Tokio and ten console emulators. Each technique records why it is faster, where else it applies, when it does not pay off, and how the source project used it, with commit references. Techniques are indexed by lens (algorithms, laziness, caching, memory layout, allocation, concurrency, I/O, SIMD and more), so the agent loads only the cards it needs.
+Each opportunity cites a technique a mature project actually shipped. The library holds 3,884 distinct, domain-generic principles mined from the commit histories of Redis, nginx, SQLite, RocksDB, HAProxy, DuckDB, PostgreSQL, Seastar, curl, Netty, Tokio and ten console emulators. Each technique records why it is faster, where else it applies, when it does not pay off, and how the source project used it, with commit references. A technique shipped by several projects has one card that credits all of them. Techniques are indexed by lens (algorithms, laziness, caching, memory layout, allocation, concurrency, I/O, SIMD and more), so the agent loads only the cards it needs.
 
 ## Sources and licenses
 

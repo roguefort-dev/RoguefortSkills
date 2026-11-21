@@ -1,6 +1,6 @@
 ---
 name: perf-opportunities
-description: Run a complete performance review of a codebase (or a directory, file, or diff), reading every source file and cross-referencing the code against a library of 4,300+ optimization techniques mined from the commit histories of Redis, nginx, SQLite, RocksDB, HAProxy, DuckDB, PostgreSQL, Seastar, curl, Netty, Tokio and ten console emulators, then write every optimization opportunity found to a plain performance-opportunities.html report. Use when the user asks to "find optimization opportunities", "what could be faster here", "performance audit", "perf review", "where is this slow", or wants a performance opportunity document. This skill finds and documents opportunities; it does not apply them unless asked.
+description: Run a complete performance review of a codebase (or a directory, file, or diff), reading every source file and cross-referencing the code against a library of 3,800+ distinct optimization techniques mined from the commit histories of Redis, nginx, SQLite, RocksDB, HAProxy, DuckDB, PostgreSQL, Seastar, curl, Netty, Tokio and ten console emulators, then write every optimization opportunity found to a plain performance-opportunities.html report. Use when the user asks to "find optimization opportunities", "what could be faster here", "performance audit", "perf review", "where is this slow", or wants a performance opportunity document. This skill finds and documents opportunities; it does not apply them unless asked.
 ---
 
 # Performance opportunities
@@ -9,7 +9,7 @@ You are reviewing code for ways to make it faster or lighter, and writing up eve
 
 It is complete. Every source file in scope gets read, and every place where a known technique applies gets reported, whether or not that code is on a hot path. The user wants the full inventory of what could be optimized and will decide for themselves what is worth doing. Do not skip code because it runs rarely, and do not drop an opportunity because its gain looks small; record how often the code runs so the reader can weigh it.
 
-It is grounded. Every opportunity cites a technique that a mature, performance-critical project actually shipped. The `references/` folder holds 4,308 such techniques, each a domain-generic principle with the evidence of how the source project used it. Your job is to read the target code closely, find every site whose code meets a technique's precondition, and document each match so a developer can act on it.
+It is grounded. Every opportunity cites a technique that a mature, performance-critical project actually shipped. The `references/` folder holds 3,884 such techniques, deduplicated across projects, each a domain-generic principle with the evidence of how the source project used it. Your job is to read the target code closely, find every site whose code meets a technique's precondition, and document each match so a developer can act on it.
 
 The reader of the report is a developer who knows their codebase but has not seen the technique library. They will decide what to implement from your document alone, so each entry has to show the exact code, say what would change, and be honest about how sure you are.
 
@@ -17,7 +17,7 @@ The reader of the report is a developer who knows their codebase but has not see
 
 - `references/README.md` lists the lenses and the source projects with counts.
 - `references/index/<lens>.md` has one line per technique: `id | title | first sentence of the principle`. There are 24 lenses (algorithms, laziness, caching, allocation, memory-layout, concurrency, io, simd, and so on). These are what you scan.
-- `references/cards/<project>.md` has the full card for every technique from that project. The id prefix is the file name: `redis-042` lives in `cards/redis.md`. Each card is exactly seven lines (heading, lens and source, principle, why it is faster, where else it applies, pitfall, how the source project used it), so `grep -A 6 "^### redis-042 " references/cards/redis.md` returns one whole card. Cards from the emulator catalogues have no "why" or "watch out" text and show a dash there.
+- `references/cards/<project>.md` has the full card for every technique from that project. The id prefix is the file name: `redis-042` lives in `cards/redis.md`. Each card is exactly seven lines (heading, lens and source, principle, why it is faster, where else it applies, pitfall, how the source project used it), so `grep -A 6 "^### redis-042 " references/cards/redis.md` returns one whole card. Cards from the emulator catalogues have no "why" or "watch out" text and show a dash there. When several projects shipped the same technique it has a single card: the second line lists the other projects ("Also: …") and the last line appends their evidence.
 
 The index files total about 660 KB and the cards about 4 MB. Read index files whole; pull cards by id. Reading a whole cards file is rarely worth it.
 

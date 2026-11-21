@@ -1,4 +1,4 @@
-# Lens: simd (122 techniques)
+# Lens: simd (119 techniques)
 
 Vectorisation, intrinsics, data-parallel kernels, runtime CPU dispatch.
 
@@ -7,9 +7,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ares-064 | Reuse one SIMD implementation across ISAs with a translation header | Rewriting a large set of SSE intrinsics for NEON doubles the maintenance, and a scalar fallback is far slower.
 - ares-065 | Gate SIMD per feature at compile time, with a scalar fallback | Forcing `-msse4.2` on the whole build lets the compiler emit those instructions everywhere, so the program crashes at startup on older CPUs.
 - ares-107 | Use a single-instruction rounding intrinsic, guarded by feature macros | Rounding a float in a given mode can be one SSE4.1 `roundss`/`roundsd` or one NEON `vrndn` instead of a library call or a mode switch.
-- ares-135 | Replace special-case scalar paths with one SIMD path and shuffle tables | Data-dependent byte permutations can be handled by a single vector shuffle driven by a precomputed control table indexed by the varying parameter.
 - ares-156 | Build an exact three-operand saturating add from SIMD min/max | A saturated `a + b + carry` cannot be done with two saturating adds in arbitrary order.
-- ares-157 | Implement element broadcast as a table-driven byte shuffle | Vector element selectors (the "e" field) choose one of 16 lane patterns.
 - dolphin-027 | Decode pixels 16 bytes at a time, with runtime CPU dispatch | Nibble expansion, byte shuffles and channel swizzles map directly onto SIMD AND/shift/OR and byte-shuffle instructions, so one instruction handles 16 pixels or channels.
 - dolphin-028 | Precompute each input byte's vector contribution | A linear transform such as a color-space conversion is a sum of per-input terms.
 - dolphin-087 | Byte-swap and widen in SIMD registers, dispatching on CPU features | Endian conversion of a buffer is a fixed byte permutation, so one `pshufb` swaps 16 bytes at once.
@@ -21,7 +19,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-154 | Avoid false dependencies and domain-crossing penalties | Some instructions merge into the destination register, such as `MOVSD reg,reg`, which keeps the upper half.
 - dolphin-155 | Use non-destructive three-operand forms to drop copies | Two-operand SSE overwrites a source register, so keeping both inputs costs a `MOV` first.
 - dolphin-160 | Use combined load-and-transform instructions when the CPU has them | Detect optional ISA extensions at startup, and when present emit the single instruction that replaces a common pair: `MOVBE` for load+byteswap, `PDEP`/`ANDN` for bit scatter, `BLENDPD` for a lane merge.
-- dolphin-162 | Table-driven byte shuffles for byte-swap and widening in one step | A single `PSHUFB` with a precomputed control mask can byte-swap, reorder, and place narrow fields in the high bytes of 32-bit lanes all at once.
+- dolphin-162 | Table-driven byte shuffles for byte-swap and widening in one step | A single `PSHUFB` with a precomputed control mask can byte-swap, reorder, and place narrow fields in the high bytes of 32-bit lanes all at once. (also: ares)
 - dolphin-166 | Break a serial dependency chain with independent accumulators | If each step of a loop depends on the previous one, as with a running CRC, throughput is limited by the instruction's latency, not its throughput.
 - dolphin-203 | Hardware CRC32 as a fast hash, with independent lanes | When a hash only needs to detect changes rather than resist attackers, the CPU's CRC32 instruction is much cheaper than a general hash.
 - dolphin-204 | Fill memory with wide stores of a repeating pattern | A byte-at-a-time fill loop with a parity test does one store and one branch per byte.
@@ -59,7 +57,6 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - flycast-028 | Shade four pixels per instruction with lane masks | Evaluate interpolants as plane equations for four pixels at once (`x*ddx + y*ddy + c` in SSE registers).
 - flycast-050 | Map 4-wide math onto SIMD lanes | A 4-element dot product or a 4×4 matrix-vector multiply written as scalar code takes 16 multiplies and a chain of dependent adds.
 - flycast-157 | Use fused multiply-add when the CPU has it | One FMA instruction replaces a multiply and an add: half the instructions, one fewer register move, and one rounding step instead of two.
-- flycast-214 | Copy fixed-size records as vector registers and unroll the loop | Each TA command is exactly 32 bytes. Typing it as an aligned two-register SIMD struct makes every copy two vector loads and two stores. Unrolling the bulk loop by four removes loop overhead on the DMA path.
 - melonds-029 | Do channel arithmetic on packed values in one register | If colour channels sit in disjoint bit fields of one word with enough headroom between them, you can mask the word and multiply it as a whole.
 - melonds-044 | SIMD within a register: process packed channels in one integer | When the fields are narrow and you leave guard bits between them, one 32- or 64-bit multiply or shift updates several fields at once.
 - melonds-170 | SWAR colour math: blend packed channels in one integer | If channels sit in separate bytes of a 32-bit word with spare headroom bits, one integer multiply-add can process several channels at once (SIMD within a register).
@@ -76,7 +73,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-054 | Stream large one-shot writes past the cache, then fence once | When you write a large buffer that this core won't read again soon, non-temporal stores avoid evicting useful cache lines and skip the read-for-ownership.
 - pcsx2-067 | Compare fixed-layout keys as a few wide words | Comparing a key byte by byte, field by field, or with a general `memcmp` costs many branches and length handling.
 - pcsx2-070 | Use newer ISA instructions when the CPU has them, with fallbacks | Newer instruction sets often replace a shuffle-then-store sequence, or a blend built from AND/ANDN/OR, with one instruction.
-- pcsx2-087 | Move 128-bit data with 128-bit loads and stores | Copying 16-byte records as four 32-bit words, or as two 64-bit halves, costs four (or two) times the instructions of one SSE move, and can cause partial-register stalls.
+- pcsx2-087 | Move 128-bit data with 128-bit loads and stores | Copying 16-byte records as four 32-bit words, or as two 64-bit halves, costs four (or two) times the instructions of one SSE move, and can cause partial-register stalls. (also: Flycast)
 - pcsx2-088 | Fold a scalar fix-up pass into the SIMD pass | If a vectorized kernel is followed by a scalar loop that sets a default value in every element, the data is walked twice and the second walk is slow.
 - pcsx2-097 | Compare floats as integers when the ordering matches | IEEE floats of the same sign order the same way as their bit patterns read as signed integers.
 - pcsx2-133 | Wider vectors and non-destructive SIMD encodings | Three-operand VEX encodings remove the register-copy moves that two-operand SSE needs.

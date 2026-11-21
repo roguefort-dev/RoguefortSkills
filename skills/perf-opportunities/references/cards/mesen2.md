@@ -51,20 +51,20 @@ Watch out: —
 Seen in Mesen2: In `Ppu::RenderTilemap`, the tilemap row, Y offset and base address were computed for every pixel. They moved above the `for(x)` loop. A later commit introduced `outBaseAddress = (_scanline << 8)` in every per-pixel loop, and then `pixelFlags` (derived from `_colorMathEnabled`) was hoisted out of the inner pixel loop. 596d6b9c 2019-02 “PPU: Optimizations (runs ~20% faster)” · 86326215 2019-02 “PPU: Precalculate some flags through templates for performance” · e09b7a05 2019-07 “PPU: Minor color math optimization”
 
 ### mesen2-007 — Turn runtime mode flags into template parameters
-Lens: compiler-build · Source: Mesen2
+Lens: compiler-build · Source: Mesen2 · Also: ares, Flycast
 Principle: If a hot loop tests the same few configuration flags on every iteration, dispatch once to a template instantiation for each flag combination. Each specialized copy has the dead branches compiled out and constants folded in.
 Why it is faster: —
 Applies elsewhere: templated image filters per pixel format, specialized SQL operator kernels per data type, shader permutations in game engines.
 Watch out: —
-Seen in Mesen2: `Ppu::RenderTilemap` now picks among template instantiations on `largeTiles`, `activeWindowCount` (0/1/2) and `applyMosaic` in a small dispatcher, so these are compile-time constants inside the per-pixel loop. Later commits added `hiResMode` and `directColorMode` as template parameters in the same way. 86326215 2019-02 “PPU: Precalculate some flags through templates for performance” · f68aa2a8 2019-07 “PPU: Skip high priority tile processing…”
+Seen in Mesen2: `Ppu::RenderTilemap` now picks among template instantiations on `largeTiles`, `activeWindowCount` (0/1/2) and `applyMosaic` in a small dispatcher, so these are compile-time constants inside the per-pixel loop. Later commits added `hiResMode` and `directColorMode` as template parameters in the same way. 86326215 2019-02 “PPU: Precalculate some flags through templates for performance” · f68aa2a8 2019-07 “PPU: Skip high priority tile processing…” • Also seen in ares (ares-093): The PC Engine VDP's per-pixel loop called `Model::SuperGrafx()` several times per pixel. `VDP::main` and `step` became `template<bool supergrafx>`, and `power()` creates the thread with `&VDP::main<true>` or `<false>`. The commit describes this as a "significant performance boost" in pixel-accuracy mode. 69c20711f 2025-01 “pce: evaluate SuperGrafx check at power-on time in the VDP” • Also seen in Flycast (flycast-108): `mmu_full_lookup(..., bool internal)` became `template<bool internal>`. The area-0 handlers in `sb_mem.cpp` became `template<typename T, u32 System, bool Mirror>`, with the old chain of `settings.platform.system` checks turned into compile-time conditions. The Naomi GD-ROM DES routine became `template<bool decrypt> des_encrypt_decrypt`. d0f65b19d 2019-03 “mmu: templatize mmu_full_lookup” · 6af509159 2021-03 “optimize area0 mem handlers” · 7ab275d4b 2019-12 “naomi: faster gdrom loading”
 
 ### mesen2-008 — Unroll small fixed-count loops
-Lens: compiler-build · Source: Mesen2
+Lens: compiler-build · Source: Mesen2 · Also: ares
 Principle: When a loop's trip count is a small constant, or one of a few known values, writing out the body removes loop overhead and index arithmetic. It also lets the compiler schedule the independent operations together.
 Why it is faster: —
 Applies elsewhere: hand-unrolled CRC or hash rounds, an explicit 4-wide accumulate in a dot product, Duff's-device style copies in embedded code.
 Watch out: —
-Seen in Mesen2: The tile-decoding loop `for(plane = 0; plane < bpp; plane++)` was replaced with explicit 2/4/8-plane branches that read `_vram[pixelStart + 0/1/16/17/…]` directly. The master clock's generic `while(cyclesToRun >= 2)` template became dedicated `IncMasterClock4/6/8/40()` functions that call `Exec()` a fixed number of times. 596d6b9c 2019-02 “PPU: Optimizations (runs ~20% faster)” · d46c8c3f 2019-07 “Refactored master clock code to improve performance”
+Seen in Mesen2: The tile-decoding loop `for(plane = 0; plane < bpp; plane++)` was replaced with explicit 2/4/8-plane branches that read `_vram[pixelStart + 0/1/16/17/…]` directly. The master clock's generic `while(cyclesToRun >= 2)` template became dedicated `IncMasterClock4/6/8/40()` functions that call `Exec()` a fixed number of times. 596d6b9c 2019-02 “PPU: Optimizations (runs ~20% faster)” · d46c8c3f 2019-07 “Refactored master clock code to improve performance” • Also seen in ares (ares-034): GBA `CPU::step` replaced `for(auto& dma : this->dma)` and `for(auto& timer : timer)` with explicit `dma[0..3]` / `timer[0..3].run()`, and turned the DMA loop into `while(dma[0].run() | dma[1].run() | dma[2].run() | dma[3].run());`. The changelog calls it "optimized … as much as I could for a slight speedup". ba384a7c4 2017-08 “Update to v104 release.”
 
 ### mesen2-009 — Fuse parallel passes over the same data into one loop
 Lens: algorithms · Source: Mesen2
@@ -75,12 +75,12 @@ Watch out: —
 Seen in Mesen2: Each SNES BG mode was rendered twice, as `RenderMode1<true>()` and then `RenderMode1<false>()`, once for the main screen and once for the sub screen. Now `RenderTilemap`/`RenderSprites` decode each pixel once and write to both `_mainScreenBuffer` and `_subScreenBuffer`, each with its own window mask (`mainWindowCount`/`subWindowCount`). 667aed6f 2019-07 “PPU: Refactoring and optimizations”
 
 ### mesen2-010 — Unswitch loops: move invariant branches outside
-Lens: branching-fast-paths · Source: Mesen2
+Lens: branching-fast-paths · Source: Mesen2 · Also: Flycast
 Principle: If a condition is fixed for the whole loop, write two loops and test the condition once. Each loop body gets smaller and branch-free, and the simple case no longer pays for the complex one's bookkeeping.
 Why it is faster: —
 Applies elsewhere: separate fast paths for contiguous vs strided arrays, distinct loops for grayscale vs RGB images, a separate loop when no filter is active in a query engine.
 Watch out: —
-Seen in Mesen2: `Ppu::ApplyColorMath` tested `if(hiResMode)` per pixel and carried `prevMainPixel`/`prevX` through every iteration. It is now split into a hi-res loop and a plain loop. The plain loop only calls `ApplyColorMathToPixel(_mainScreenBuffer[x], _subScreenBuffer[x], …)`. a15b22a0 2020-07 “PPU: Fixed color math logic for high res mode … + Minor refactoring for performance”
+Seen in Mesen2: `Ppu::ApplyColorMath` tested `if(hiResMode)` per pixel and carried `prevMainPixel`/`prevX` through every iteration. It is now split into a hi-res loop and a plain loop. The plain loop only calls `ApplyColorMathToPixel(_mainScreenBuffer[x], _subScreenBuffer[x], …)`. a15b22a0 2020-07 “PPU: Fixed color math logic for high res mode … + Minor refactoring for performance” • Also seen in Flycast (flycast-069): In `ReadRTTBuffer` (`core/rend/gles/gltex.cpp`), the per-pixel `switch(fb_packmode)` inside `for (c < w)` became a switch outside four separate inner loops, one each for 0555 KRGB, 565, 4444 and 1555. 846d02d9d 2018-06 “Optimize RTT to VRAM.”
 
 ### mesen2-011 — Strength-reduce affine math to running accumulators
 Lens: algorithms · Source: Mesen2
@@ -99,12 +99,12 @@ Watch out: —
 Seen in Mesen2: Mosaic handling in `GetTilemapData`/`GetChrData` computed `(scanline - _mosaicStartScanline) % _mosaicSize`. It now maintains `_mosaicScanlineCounter`, which is decremented once per scanline in `ProcessEndOfScanline`, and a per-pixel `mosaicCounter` in `RenderTilemap`. 6ba622df 2019-07 “PPU: Minor refactoring/optimizations”
 
 ### mesen2-013 — Store data at the width it is accessed
-Lens: memory-layout · Source: Mesen2
+Lens: memory-layout · Source: Mesen2 · Also: ares
 Principle: If every access reassembles a value from two bytes (`a[i] | a[i+1] << 8`), store the array as native 16-bit words. Each read becomes one load with simpler indexing.
 Why it is faster: —
 Applies elsewhere: keep palettes as `uint32_t` RGBA rather than byte triples, decode a wire format into typed structs once, use typed arrays instead of DataView byte access in JS.
 Watch out: —
-Seen in Mesen2: CGRAM changed from `uint8_t[512]` to `uint16_t[256]`. Palette fetches in `RenderTilemap`, `RenderSprites`, `RenderBgColor` and Mode 7 went from `_cgram[off] | (_cgram[off+1] << 8)` to `_cgram[idx]`. Byte-level register access is handled only in the rare read/write paths. aa9f7b3f 2019-07 “PPU: Convert CGRAM to uint16_t array (performance + code simplicity)”
+Seen in Mesen2: CGRAM changed from `uint8_t[512]` to `uint16_t[256]`. Palette fetches in `RenderTilemap`, `RenderSprites`, `RenderBgColor` and Mode 7 went from `_cgram[off] | (_cgram[off+1] << 8)` to `_cgram[idx]`. Byte-level register access is handled only in the rare read/write paths. aa9f7b3f 2019-07 “PPU: Convert CGRAM to uint16_t array (performance + code simplicity)” • Also seen in ares (ares-032): The GBA PPU moved to 16-bit PRAM read directly as `pram[color]`, which the changelog calls a "decent speedup". The new SNES scanline PPU used "little-endian word reads where applicable". The SNES PPU switched to `uint16 vram[32768]`, so `tile = ppu.vram[address]` replaced `vram[a] | vram[a+1] << 8`. The changelog measured that change as a wash. 01b4cb991 2012-04 “Update to v087r20 release.” · f1009ec63 2010-09 “Update to v068r08 release.” · ccd8878d7 2016-06 “Update to v099r07 release.”
 
 ### mesen2-014 — Lay out hot fields by access frequency to fit cache lines
 Lens: memory-layout · Source: Mesen2
@@ -115,12 +115,12 @@ Watch out: —
 Seen in Mesen2: `BaseNesPpu` was reorganized with explicit `//64 : end of cache line` markers. Rendering state (`_cycle`, `_scanline` as `int16_t`, shift registers, sprite counters, `_mapper`, `_currentOutputBuffer`) fills the first line, `_paletteRAM` and `_secondarySpriteRAM` fill the second, and fields marked "not used in rendering" come after. 5147f2db 2021-05 “Optimize field layout for PPU (cache line optimizations)”
 
 ### mesen2-015 — Interleave tables that are read together
-Lens: memory-layout · Source: Mesen2
+Lens: memory-layout · Source: Mesen2 · Also: Netty
 Principle: If a kernel always reads `A[i]` and `B[i]` together, store them interleaved as one array of pairs. Both values then arrive in the same cache line, and the access pattern becomes sequential.
 Why it is faster: —
 Applies elsewhere: array-of-structs for coefficient pairs in FIR filters, interleaved vertex attributes for GPUs, key/value adjacency in open-addressing hash tables.
 Watch out: —
-Seen in Mesen2: The SPC DSP core was switched to the "fast" variant. Its Gaussian interpolation table is stored as `interleved_gauss[512]`, where `interleved_gauss[i] = gauss[(i & 1) * 256 + 255 - (i >> 1 & 0xFF)]`, with the comment "to improve cache coherency". d12a582d 2019-02 “SPC: Switched to fast DSP core (better for development for now)”
+Seen in Mesen2: The SPC DSP core was switched to the "fast" variant. Its Gaussian interpolation table is stored as `interleved_gauss[512]`, where `interleved_gauss[i] = gauss[(i & 1) * 256 + 255 - (i >> 1 & 0xFF)]`, with the comment "to improve cache coherency". d12a582d 2019-02 “SPC: Switched to fast DSP core (better for development for now)” • Also seen in Netty (netty-039): a383988cdb 2013-08-13 `ChannelOutboundBuffer` replaced nine parallel arrays (message, promise, size, progress, total, ...) with one circular `Entry[]` plus flushed/unflushed indices. • 10539f4dc7 2018-11-03 `CompositeByteBuf` stores (buffer, offset, adjustment) directly in each component in a raw `Component[]` instead of slice wrappers in an `ArrayList`.
 
 ### mesen2-016 — Replace virtual dispatch with static polymorphism (CRTP)
 Lens: platform · Source: Mesen2
@@ -243,12 +243,12 @@ Watch out: —
 Seen in Mesen2: Rewind compression switched from default `compress()` to `compress2(…, MZ_BEST_SPEED)`, and the interval between rewind snapshots went from 30 to 60 frames. For run-ahead, `Serializer::Save` gained a `compressionLevel == 0` path that writes raw bytes, plus a matching uncompressed load. 4aea5123 2019-07 “Rewind: Tweak rewind to make it less cpu/memory intensive” · 5f2c502b 2019-12 “Run ahead support (+ improved save/load state performance) …”
 
 ### mesen2-031 — Skip presentation work for frames nobody will see
-Lens: laziness · Source: Mesen2
+Lens: laziness · Source: Mesen2 · Also: ares
 Principle: When simulation runs faster than the display can show it, keep simulating every step but skip the rendering and output stages for frames that will never be displayed. Pace the skipping by elapsed time, not a fixed ratio, so you present exactly as often as the display needs.
 Why it is faster: —
 Applies elsewhere: fixed-timestep game loops that render at most once per vsync, skipping chart redraws when data arrives faster than the refresh rate, dropping intermediate video frames under load.
 Watch out: —
-Seen in Mesen2: When fast-forwarding, `Ppu::RenderScanline` first skipped 3 of every 4 frames (`_frameCount & 0x03`). This changed to time-based `_skipRender`, set when `_frameSkipTimer.GetElapsedMS() < 10`, which also skips BG fetches and `SendFrame`. Run-ahead frames force `_skipRender = true`, and `SoundMixer` drops their audio. 3715e844 2019-04 “PPU: Skip frames while fast forwarding to improve maximum speed (no impact on emulation accuracy)” · f5bb073b 2019-07 “PPU: Improved frame skipping logic” · 5f2c502b 2019-12 “Run ahead support …”
+Seen in Mesen2: When fast-forwarding, `Ppu::RenderScanline` first skipped 3 of every 4 frames (`_frameCount & 0x03`). This changed to time-based `_skipRender`, set when `_frameSkipTimer.GetElapsedMS() < 10`, which also skips BG fetches and `SendFrame`. Run-ahead frames force `_skipRender = true`, and `SoundMixer` drops their audio. 3715e844 2019-04 “PPU: Skip frames while fast forwarding to improve maximum speed (no impact on emulation accuracy)” · f5bb073b 2019-07 “PPU: Improved frame skipping logic” · 5f2c502b 2019-12 “Run ahead support …” • Also seen in ares (ares-028): The compatibility and performance PPUs gained `set_frameskip()`. `if(display.framecounter) return;` skips the frame and `framecounter = (framecounter + 1) % frameskip` advances the count. Fast forward turns off sync and uses frameskip 9, which the v069 notes report as about 80% faster. 92ab697f8 2010-09 “Update to v068r17 release.” · ccfff8614 2010-09 “Update to v069 release.”
 
 ### mesen2-032 — Produce output at native resolution and upscale only when needed
 Lens: memory-layout · Source: Mesen2
@@ -323,12 +323,12 @@ Watch out: —
 Seen in Mesen2: `ctrlScrollableTextbox.cboSearch_TextUpdate` stores `_noMatchString` when `Search` fails, and returns early while `cboSearch.Text.StartsWith(_noMatchString)`. The cache is cleared when focus leaves. The same commit added `HexUtilities::ToHexChar`, which returns `const char*` from a `constexpr` table so `FastString` can write hex without building `std::string`s. 60067db2 2019-07 “Debugger: Fixed crash in disassembly, slightly improved search performance”
 
 ### mesen2-041 — Move blocking I/O and slow device scans off the UI thread
-Lens: concurrency · Source: Mesen2
+Lens: concurrency · Source: Mesen2 · Also: Flycast
 Principle: Disk reads, archive decompression and hardware enumeration can stall for tens of milliseconds or more. Run them on a background task and stop polling slow APIs periodically. Re-scan only at moments when a short delay is acceptable.
 Why it is faster: —
 Applies elsewhere: loading thumbnails asynchronously in galleries, enumerating USB/Bluetooth devices on hot-plug events instead of timers, `async` file reads in Electron renderers.
 Watch out: —
-Seen in Mesen2: `ctrlRecentGame` now reads the save-state zip and decodes `Screenshot.png` inside `Task.Run`. `WindowsKeyManager` stopped calling `_directInput->UpdateDeviceList()` every 5 s (it "takes more time and sometimes causes issues/freezes"). DirectInput devices are now refreshed when a game loads and, in a `Task.Run`, when the input config opens. 63b23a7b 2019-12 “Recent games: Improve UI responsiveness when disk is slow” · 857caa3e 2019-12 “Input: Turn off hot plugging for directinput devices …”
+Seen in Mesen2: `ctrlRecentGame` now reads the save-state zip and decodes `Screenshot.png` inside `Task.Run`. `WindowsKeyManager` stopped calling `_directInput->UpdateDeviceList()` every 5 s (it "takes more time and sometimes causes issues/freezes"). DirectInput devices are now refreshed when a game loads and, in a `Task.Run`, when the input config opens. 63b23a7b 2019-12 “Recent games: Improve UI responsiveness when disk is slow” · 857caa3e 2019-12 “Input: Turn off hot plugging for directinput devices …” • Also seen in Flycast (flycast-080): The Android `FileBrowser.navigate(File)` called `listFiles()`, sorted and built views synchronously. It became an `AsyncTask<File, Integer, List<File>>` started with `executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, ...)`. The game-info XML parser also moved to the pool executor. f88cb7f0e 2018-03 “Move file list navigation to background (multi-threaded)”
 
 ### mesen2-042 — Sort and truncate by cheap metadata before reading contents
 Lens: io · Source: Mesen2
@@ -355,12 +355,12 @@ Watch out: —
 Seen in Mesen2: `PceVdc::DrawScanline` checked sprite state on every pixel. It now dispatches once to `InternalDrawScanline<hasSprites, hasSprite0>`, and lines with no sprites run a loop that has no sprite code at all. The PPU viewers' `GetTileView` used to call `GetTilePixelColor(..., format)` and `GetRgbPixelColor(format, ...)` per pixel, each containing a `switch(format)`. It now switches once into `InternalGetTileView<TileFormat>`, and the commit reports 30–75% faster viewer code in the core. Frame skipping added a third parameter, `skipRender`, to the same scanline template. 6d254cd4 2022-08 “PCE: Optimize DrawScanline using template” · a61e559c 2022-08 “Debugger: Performance improvements for ppu viewers (30-75% faster in core)” · 45287639 2022-09 “PCE: Added support for frame skipping...”
 
 ### mesen2-045 — Rebind a function pointer when configuration changes
-Lens: branching-fast-paths · Source: Mesen2
+Lens: branching-fast-paths · Source: Mesen2 · Also: Flycast
 Principle: When a per-tick function branches on configuration that rarely changes (hardware variant, speed mode, attached peripherals), compile one specialized version per combination. Store a pointer to the right one and update it only when the configuration changes. The hot path then makes one indirect call and evaluates none of the configuration branches.
 Why it is faster: —
 Applies elsewhere: picking a SIMD kernel once at startup from CPUID, swapping a logger's write function when the log level changes, a storage engine that installs a different page handler after compression is turned on.
 Watch out: —
-Seen in Mesen2: `PceMemoryManager::Exec` used to test `FastCpuSpeed`, `_cdrom` and SuperGrafx on every master-clock step. `UpdateExecCallback()` now chooses one of four `ExecTemplate<hasCdRom, isSuperGrafx>` instances and stores it in `_exec`. In slow-CPU mode it stores `ExecSlow` instead, which calls the chosen fast variant three times. The callback is rebuilt on power-on and whenever the speed register changes. f05260ad 2022-08 “PCE: Optimize Exec() logic with templates/logic to avoid calls when not needed, etc.”
+Seen in Mesen2: `PceMemoryManager::Exec` used to test `FastCpuSpeed`, `_cdrom` and SuperGrafx on every master-clock step. `UpdateExecCallback()` now chooses one of four `ExecTemplate<hasCdRom, isSuperGrafx>` instances and stores it in `_exec`. In slow-CPU mode it stores `ExecSlow` instead, which calls the chosen fast variant three times. The callback is rebuilt on power-on and whenever the speed register changes. f05260ad 2022-08 “PCE: Optimize Exec() logic with templates/logic to avoid calls when not needed, etc.” • Also seen in Flycast (flycast-110): `ReadMem8/16/32/64` and `WriteMem*` became function pointers. Writing `MMUCR.AT` calls `mmu_set_state()`, which points them at either the translating or the direct implementations. 73d50486d 2019-03 “mmu: dynamic switching with read/write mem function pointers” • Also seen in Flycast (flycast-188): Store-queue writes used to test `CCN_MMUCR.AT` on every `pref` to choose `do_sqw_mmu` or `do_sqw_nommu`. Now `Sh4Context` holds `SQWriteFunc *doSqWrite`, and the canonical op becomes `if ((r1 >> 26) == 0x38) ctx->doSqWrite(r1, ctx);`. A new `CPT_sh4ctx` parameter type lets canonical implementations receive the context. 7c1c5817d 2024-11 “sh4: move sqWrite func into sh4 context. Simplify usage” • Also seen in Flycast (flycast-220): `ChannelEx` has `STREAM_STEP_LUT[5][2][2]`, `AEG_STEP_LUT[4]` and `FEG_STEP_LUT[4]`. Register writes set `StepStream = STREAM_STEP_LUT[fmt][ccd->LPCTL][ccd->LPSLNK];` and envelope transitions set `StepAEG = AEG_STEP_LUT[newstate];`. Entries are filled with instantiations such as `&ChannelEx::StreamStep<ADPCM, false, true>`. Volume and attenuation use fixed-point `volume_lut[16]` and `tl_lut[]` with `FPMul`. The step tables are inherited from the 2013 import (1c16baeb0). current code: core/hw/aica/sgc_if.cpp
 
 ### mesen2-046 — Skip idle subsystems with a "needs work" flag
 Lens: laziness · Source: Mesen2
@@ -651,12 +651,12 @@ Watch out: —
 Seen in Mesen2: `MesenScrollContentPresenter.MeasureOverride` now checks for a `DataBox` ancestor. If there is one, it calls `Child.Measure(availableSize)` and returns `Child.DesiredSize.Constrain(availableSize)` instead of running the base scroll presenter's measure. ffd4bec3 2022-06 “UI: Fixed performance issues with DataBox in some scenarios”
 
 ### mesen2-082 — Hand-written span tokenizer instead of backtracking regexes
-Lens: algorithms · Source: Mesen2
+Lens: algorithms · Source: Mesen2 · Also: curl
 Principle: For a simple `key=value,key=value` format, regexes full of optional `.*` groups backtrack and allocate a `Match` and a string for every group. A single pass over a `ReadOnlySpan<char>` that splits on delimiters and parses numbers in place does no allocation and does not depend on field order.
 Why it is faster: —
 Applies elsewhere: log parsers in Go and Rust that use `bytes.IndexByte`, hand-rolled CSV or querystring splitters, HTTP header parsing in high-throughput servers.
 Watch out: —
-Seen in Mesen2: `DbgImporter` parsed ca65 `.dbg` lines with `_lineRegex`, `_spanRegex` and `_symbolRegex`. A new `DbgReader.ReadEntry(row, (ref ReadOnlySpan<char> name, ref ReadOnlySpan<char> data) => ...)` walks the fields instead, together with `Int32.Parse(span)` and `ReadIntArray`. The `LineInfo`, `SpanInfo` and related records also became value types. 4b3e425e 2022-01 “Debugger: Performance fixes for DBG import”
+Seen in Mesen2: `DbgImporter` parsed ca65 `.dbg` lines with `_lineRegex`, `_spanRegex` and `_symbolRegex`. A new `DbgReader.ReadEntry(row, (ref ReadOnlySpan<char> name, ref ReadOnlySpan<char> data) => ...)` walks the fields instead, together with `Int32.Parse(span)` and `ReadIntArray`. The `LineInfo`, `SpanInfo` and related records also became value types. 4b3e425e 2022-01 “Debugger: Performance fixes for DBG import” • Also seen in curl (curl-013): f6433211ae 2004-09-11 "getdate replacement code. smaller, slicker, faster": a 329-line table-driven date parser; f71b3f48a1 2004-09-15 deletes the yacc grammar, 3,681 lines, "No more yacc/bison needed." • 220776de6b 2012-06-15 RTSP CSeq: `strdup` + uppercase + `sscanf` + `free` replaced by one `sscanf` at the already-matched offset. • 788c6b3864 2023-02-24 `CURLOPT_RESOLVE` parsing: `sscanf("%255[^:]:%d")` into a 256-byte buffer replaced by `strchr` + `strtoul` in place ("avoid sscanf and extra buffer copies"). 5cc09a8479 2023-02-17 parsedate time fields, 3b15ee1e34 2023-02-24 RTSP and 5ed7417d2f 2023-02-24 krb5 likewise. • d5c738c608 2024-12-06 adds the `Curl_str_*` span helpers; 676de7f580 2025-02-17 replaces `strtok_r()` across 26 files, which "helps avoid extra mallocs"; 9be5c68492 2026-09-04 digest auth parses with spans instead of copying values into local buffers.
 
 ### mesen2-083 — Comparator dispatch table and ordinal string comparison
 Lens: algorithms · Source: Mesen2
@@ -867,12 +867,12 @@ Watch out: —
 Seen in Mesen2: `Renderer::DrawScreen` and `DrawHud` on Windows used a per-row `memcpy` into the mapped D3D11 texture. They now check `if(rowPitch != dd.RowPitch)` to keep the row loop, and otherwise call `memcpy(surfacePointer, videoBuffer, rowPitch * height)`. af2afc4c 2023-10 “Reduced CPU usage for HUDs and when paused”
 
 ### mesen2-109 — Double-buffer frames so the producer never waits on the consumer
-Lens: concurrency · Source: Mesen2
+Lens: concurrency · Source: Mesen2 · Also: ares
 Principle: If the producer has to hand off a frame synchronously, it stalls until the consumer is done. With two buffers, the producer writes into the back buffer, and the handoff is a pointer swap under a short lock. Use the same path for every mode, so no special case falls back to synchronous handoff.
 Why it is faster: —
 Applies elsewhere: swap chains in graphics APIs; ping-pong DMA buffers in embedded audio; triple buffering in video players; lock-free SPSC queues of size two.
 Watch out: —
-Seen in Mesen2: For interlaced frames, `SnesPpu` skipped the output-buffer swap and sent them with `UpdateFrame(frame, true, …)`, a synchronous handoff. Now it always swaps `_currentBuffer` and seeds the new buffer from the previous one with `memcpy` for interlace. Every frame goes through `UpdateFrame(frame, isRewinding, isRewinding)`. The commit message says this speeds up fast-forward when video filters are on. The new `SoftwareRenderer` does `memcpy` into `_textureBuffer[0]` under `_textureLock`, and `Render` just calls `std::swap(_textureBuffer[0], _textureBuffer[1])`. a86f5abf 2023-03 “SNES: Use double buffering for interlaced games (like all other games) Improves fast forward performance when video filters are used…” · 63bac5d4 2023-02 “macOS: Replace SDL renderer with Avalonia…”
+Seen in Mesen2: For interlaced frames, `SnesPpu` skipped the output-buffer swap and sent them with `UpdateFrame(frame, true, …)`, a synchronous handoff. Now it always swaps `_currentBuffer` and seeds the new buffer from the previous one with `memcpy` for interlace. Every frame goes through `UpdateFrame(frame, isRewinding, isRewinding)`. The commit message says this speeds up fast-forward when video filters are on. The new `SoftwareRenderer` does `memcpy` into `_textureBuffer[0]` under `_textureLock`, and `Render` just calls `std::swap(_textureBuffer[0], _textureBuffer[1])`. a86f5abf 2023-03 “SNES: Use double buffering for interlaced games (like all other games) Improves fast forward performance when video filters are used…” · 63bac5d4 2023-02 “macOS: Replace SDL renderer with Avalonia…” • Also seen in ares (ares-160): `Screen::frame()` waits for the previous refresh to finish, runs `_inputA.swap(_inputB)`, sets `_frame` and calls `notify_one()`. `Screen::main` waits on a condition variable with a 10 ms timeout and calls `refresh()`. Whether this is threaded is a constexpr choice, `ares::Video::Threaded`. current code: ares/ares/node/video/screen.cpp
 
 ### mesen2-110 — Reuse buffers across periodic refreshes in garbage-collected code
 Lens: allocation · Source: Mesen2

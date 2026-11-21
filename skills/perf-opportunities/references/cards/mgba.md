@@ -35,12 +35,12 @@ Watch out: —
 Seen in mGBA: `ARMStep`/`ThumbStep` became `static inline`, and the table lookup now happens only after the condition passes. `ARMRunLoop` runs `while (cycles < nextEvent) step();` with one loop per CPU mode, and `_ARMSetMode` sets `nextEvent = 0` to break out of the loop. 52808da26 2014-01 “Inline CPU stepping”; 2553b96e9 2014-01 “Skip table lookup in ARMStep if not needed”; 433f0ba36 2014-08 “Tighter looping for ARMRun”; 845d6e1d2 2014-11 “ARM: Run tighter loop in CPU”
 
 ### mgba-005 — Schedule by next deadline instead of ticking everything
-Lens: algorithms · Source: mGBA
+Lens: algorithms · Source: mGBA · Also: ares
 Principle: Keep a single "time of the next interesting event" and service components only when it is reached, as in discrete-event simulation. The hot loop costs one compare per step, and idle components cost nothing.
 Why it is faster: —
 Applies elsewhere: timer heaps in game servers and event loops, a tickless OS kernel, a `setTimeout` queue.
 Watch out: —
-Seen in mGBA: The CPU calls `processEvents` only when `cycles >= nextEvent`. Each subsystem returns its next deadline, the minimum becomes the new `nextEvent`, and countdowns are reduced by `eventDiff`. The DMA path now adjusts only the channel that was serviced. Today this is the sorted event list in `mTiming`. 9b5d5d647 2013-04 “Start implementing events + add video stubs”; 3b74b6186 2013-11 “Move halting code out from below the ARM emulator”; 548793e55 2014-07 “Remove audio processing loop now that there is an event processing loop”; e7bd5f9ad 2014-10 “Remove loop in DMA to find a value we already know”
+Seen in mGBA: The CPU calls `processEvents` only when `cycles >= nextEvent`. Each subsystem returns its next deadline, the minimum becomes the new `nextEvent`, and countdowns are reduced by `eventDiff`. The DMA path now adjusts only the channel that was serviced. Today this is the sorted event list in `mTiming`. 9b5d5d647 2013-04 “Start implementing events + add video stubs”; 3b74b6186 2013-11 “Move halting code out from below the ARM emulator”; 548793e55 2014-07 “Remove audio processing loop now that there is an event processing loop”; e7bd5f9ad 2014-10 “Remove loop in DMA to find a value we already know” • Also seen in ares (ares-044): `ng::OPNB::main()` decremented the FM and PCM-A counters and called `step(1)` on every pass. It now computes a `stepDuration`, subtracts it from both counters and calls `step(stepDuration)`. In the WonderSwan's inaccurate mode, `APU::main` runs 128 iterations before calling `step(128)`, and `PPU::main` renders the whole line before a single `step(224+32)`. The commit reports about a 65% speedup. d75c13107 2022-07 “ng: avoid syncing with the YM2610 more than necessary” · 6b70091f6 2022-12 “ws: support pixel inaccuracy mode, for per-scanline PPU and fast APU processing”
 
 ### mgba-006 — Replace busy-waiting with a jump to the next event
 Lens: laziness · Source: mGBA
@@ -235,12 +235,12 @@ Watch out: —
 Seen in mGBA: `drawScanline` returns immediately while `frameskip > 0`, and `finishFrame` counts it down without signalling the display. SDL events are polled only after each presented frame, and vsync is disabled when frame sync is off. 813b2c069 2013-05 “Partially implement frameskip”; 374aca2ff 2013-05 “Move event polling to after framedraw only”; ce33adf5e 2013-10 “Don't wait on frame swap when we aren't doing frame synchronization in the first place”; bd74fa1fb 2014-10 “Add frameskip”
 
 ### mgba-030 — Filter at the source so disabled logging and checks cost nothing
-Lens: laziness · Source: mGBA
+Lens: laziness · Source: mGBA · Also: curl, Seastar
 Principle: Check log levels before formatting or handing messages to another thread. Gate debug assertions on compile-time constants so the compiler removes them, and skip whole code paths when the hardware they serve is absent.
 Why it is faster: —
 Applies elsewhere: `if (log.isDebugEnabled())`, `NODE_ENV` dead-code elimination, `assert` compiled out under NDEBUG.
 Watch out: —
-Seen in mGBA: The level filter now runs before the variadic log handler. Qt drops disabled levels in the emulator thread before emitting a cross-thread signal. Renderer invariant checks are wrapped in `if (VIDEO_CHECKS && UNLIKELY(...))`, which is false under NDEBUG. GPIO register checks are skipped when `gpioDevices == GPIO_NONE`. 24c826e5b 2014-10 “Don't log everything to the log handler when that log level is disabled”; 942ae92c4 2014-11 “GBA Video: Disable sentinel code in release builds”; 65d74a2e3 2014-11 “Qt: Discard log levels without cross-thread communication if we can”; 6bb61bc67 2014-12 “GBA Memory: Don't call into GPIO write calls if GPIO devices are absent”
+Seen in mGBA: The level filter now runs before the variadic log handler. Qt drops disabled levels in the emulator thread before emitting a cross-thread signal. Renderer invariant checks are wrapped in `if (VIDEO_CHECKS && UNLIKELY(...))`, which is false under NDEBUG. GPIO register checks are skipped when `gpioDevices == GPIO_NONE`. 24c826e5b 2014-10 “Don't log everything to the log handler when that log level is disabled”; 942ae92c4 2014-11 “GBA Video: Disable sentinel code in release builds”; 65d74a2e3 2014-11 “Qt: Discard log levels without cross-thread communication if we can”; 6bb61bc67 2014-12 “GBA Memory: Don't call into GPIO write calls if GPIO devices are absent” • Also seen in curl (curl-034): 3fef839f75 2007-05-15 Line-buffered memdebug logging guarded by `MEMDEBUG_LOG_SYNC`, "disabled by default for speed"; 31a1af5ebb 2011-08-17 malloc and free fill patterns only with explicit defines. • 3509aa8023 2017-02-05 darwinssl: server certificate parsing in connect step 3 runs only when verbose, under `#ifndef CURL_DISABLE_VERBOSE_STRINGS`. • aabc7ae5ec 2019-02-11 Per-expire "Expire in" messages removed from the multi hot path. • d70a5b5a0f 2020-11-02 The `set.verbose` check moved into `Curl_debug()`, removing duplicate checks at about 20 call sites. • Also seen in Seastar (seastar-029): 15ad5bc2f1 2018-07-19 `logger::is_enabled()` is predicted false: "logging is so slow anyway that we don't care" about mispredicting enabled levels. • 0d250d15ac 2022-01-28 `current_backtrace()` ("very expensive") on allocation failure runs only if debug logging is enabled, because some callers expect and suppress failures. • 63afb6fb0d 2021-12-06 A "silencer" log level below all others stops syslog→malloc→log recursion and "helps to avoid extra if's on hot paths". • 608a8dbc1a 2021-12-16 `scoped_critical_alloc_section` touches its TLS counter only when fault injection is compiled in. cfd31fdf0e 2023-05-29 Gate-holder tracking exists only under `SEASTAR_GATE_HOLDER_DEBUG`.
 
 ### mgba-031 — Default to optimized builds, feed profiles back, and benchmark headless
 Lens: compiler-build · Source: mGBA
@@ -331,12 +331,12 @@ Watch out: —
 Seen in mGBA: `ARMDebuggerRun` uses the batched `ARMRunLoop` when there are no breakpoints or watchpoints, and per-instruction `ARMRun` otherwise. The breakpoint lists changed from malloc'd linked lists to `DEFINE_VECTOR` arrays. e30674d05 2016-01 “Debugger: Convert breakpoints and watchpoints from linked-lists to vectors”
 
 ### mgba-042 — Hoist loop-invariant branches by specialising the loop
-Lens: branching-fast-paths · Source: mGBA
+Lens: branching-fast-paths · Source: mGBA · Also: ares
 Principle: If a condition is constant for the whole loop, test it once and run a specialised copy of the loop body (via macros or templates). This removes per-iteration branches and lets the compiler optimise each straight-line variant.
 Why it is faster: —
 Applies elsewhere: separate image-filter loops for opaque and alpha images; templated SQL operators per column type.
 Watch out: —
-Seen in mGBA: The Mode 2 background renderer used to test objwin, blend mode, overflow and mosaic on every pixel. `MODE_2_LOOP(MOSAIC, COORD, BLEND, OBJWIN)` now expands one loop per combination, and the choice is made once per scanline. This is unchanged in HEAD `software-bg.c`. 320033e72 2015-09 “GBA Video: Mode 2 optimizations” · 642ed65ee 2015-10 “GBA Video: Minor mode 2 optimization”
+Seen in mGBA: The Mode 2 background renderer used to test objwin, blend mode, overflow and mosaic on every pixel. `MODE_2_LOOP(MOSAIC, COORD, BLEND, OBJWIN)` now expands one loop per combination, and the choice is made once per scanline. This is unchanged in HEAD `software-bg.c`. 320033e72 2015-09 “GBA Video: Mode 2 optimizations” · 642ed65ee 2015-10 “GBA Video: Minor mode 2 optimization” • Also seen in ares (ares-062): In the Mega Drive VDP, `tick()`, `DAC::pixel()` and `output()` became `template<bool h40, bool draw>`. `mainH32` calls `dac.pixels ? blocks<false,true>() : blocks<false,false>()`, which moved 32X Doom to 80–90 fps on the author's machine. The RSP vector ops became `template<u8 e>`, and the recompiler's `callvu(name)` switches over `E` to call `name<0x0>…name<0xf>` instead of passing `e` in a register. b442ef462 2022-12 “md: use templating to reduce if statements in tight inner loops” · 5e2a8f08b 2021-12 “n64: templatize rsp vpu”
 
 ### mgba-043 — Detect parameters that make an operation a no-op
 Lens: laziness · Source: mGBA
@@ -355,12 +355,12 @@ Watch out: —
 Seen in mGBA: For sprites, `localX < 0 || localX >= width || …` became `localX & widthMask || localY & heightMask`, with the masks and `stride` hoisted out of the loop. Mosaic nibble replication dropped from 7 shift-ORs to `<<4, <<8, <<16`. 7f2ab299f 2015-09 “GBA Video: Minor sprite optimizations” · 6c87c1c69 2015-07 “GBA Video: Slightly optimize mode 0 mosaic rendering”
 
 ### mgba-045 — Fewer specialised handlers can beat more: mind the I-cache
-Lens: memory-layout · Source: mGBA
+Lens: memory-layout · Source: mGBA · Also: ares
 Principle: Over-specialising, such as one function per constant operand, inflates code size. Once that spills out of the instruction cache and branch target buffer, a generic version that decodes the field at runtime is faster. Measure rather than assume.
 Why it is faster: —
 Applies elsewhere: collapsing heavily monomorphised generics behind a switch or `dyn` to cut binary size and cold-start time.
 Watch out: —
-Seen in mGBA: The Thumb handlers used to be stamped out per 3-bit field value (`COUNT_CALL_5`). A single handler now decodes `(opcode >> 6) & 7`. The ARM shifter-immediate and shifter-register handlers were merged into one that branches on `opcode & 0x10`. bdb763515 2015-06 “ARM7: Reduce the size of the Thumb instruction table” · 6ba239d3f 2015-08 “ARM7: Combine shifter-immediate and shifter-register functions to reduce binary size”
+Seen in mGBA: The Thumb handlers used to be stamped out per 3-bit field value (`COUNT_CALL_5`). A single handler now decodes `(opcode >> 6) & 7`. The ARM shifter-immediate and shifter-register handlers were merged into one that branches on `opcode & 0x10`. bdb763515 2015-06 “ARM7: Reduce the size of the Thumb instruction table” · 6ba239d3f 2015-08 “ARM7: Combine shifter-immediate and shifter-register functions to reduce binary size” • Also seen in ares (ares-026): The 65816 dispatcher moved from a jump table of template opcodes to a switch passing register references as arguments ("~1% speedup", smaller binary "and thus cache"). Removing templates shrank LR35902 from 386.2 KB to 197.4 KB of object code and R6502 from 146.5 to 107.6 KB, and the changelog says this "doesn't cause any speed penalty". The SPC7110 Morton lookup tables became for-loops on the reasoning that "less L2 cache usage" would offset the loss. The GSU cleanup went from 479 KB to 100 KB of object code and was "slightly faster". 83f684c66 2015-06 “Update to v094r29 release.” · 20ac95ee4 2016-06 “Update to v098r15 release.” · 3681961ca 2016-06 “Update to v098r16 release.” · 8ae6444af 2011-06 “Update to v080r01 release.” · 839813d0f 2016-06 “Update to v098r13 release.”
 
 ### mgba-046 — Hot interfaces should return native width; transform at the call site
 Lens: other · Source: mGBA
@@ -451,20 +451,20 @@ Watch out: —
 Seen in mGBA: 3DS: `gspWaitForVBlank()` became `gspWaitForEvent(GSPEVENT_VBlank0, false)`. Wii: `VIDEO_WaitVSync()` runs only if `referenceRetraceCount >= retraceCount`. Vita: `vita2d_set_vblank_wait(oldVCount == vcount)`. 58f97980e 2015-09 “3DS: Don't wait for VBlank when running behind refresh rate” · 4d1b7b459 2015-09 “Wii: Don't wait for vsync if we missed the target” · 62304e3aa 2015-10 “PSP2: Only wait on vblank if we hit the frame target”
 
 ### mgba-057 — Under load, drop presentation but keep simulating
-Lens: laziness · Source: mGBA
+Lens: laziness · Source: mGBA · Also: Flycast
 Principle: Decouple simulation from output. Under load, keep the authoritative state updates and skip rendering. Make that decision locally in the producer, without taking locks.
 Why it is faster: —
 Applies elsewhere: a game server sending snapshots at a lower rate than its tick rate; charts dropping redraws while data keeps streaming.
 Watch out: —
-Seen in mGBA: The frameskip counter moved from the mutex-guarded `GBASync` into `GBAVideo` (`frameskipCounter`), which gates `drawScanline` and `finishFrame`. Qt now posts `nullptr` for skipped frames so it doesn't re-upload. This is the same in HEAD `video.c`. f128f844a 2015-09 “GBA: Revamp frameskip” · d4ab0564e 2015-04 “Qt: Post empty frames if frameskipping”
+Seen in mGBA: The frameskip counter moved from the mutex-guarded `GBASync` into `GBAVideo` (`frameskipCounter`), which gates `drawScanline` and `finishFrame`. Qt now posts `nullptr` for skipped frames so it doesn't re-upload. This is the same in HEAD `video.c`. f128f844a 2015-09 “GBA: Revamp frameskip” · d4ab0564e 2015-04 “Qt: Post empty frames if frameskipping” • Also seen in Flycast (flycast-009): `ta_parse_vdrc` (`pvr/ta_vtx.cpp`) went from all-or-nothing `if (!settings.pvr.ta_skip)` to `if (0 == (ta_parse_cnt % (ta_skip+1)))`, so frames are skipped in a fixed ratio. On Pandora, `rend_thread` alternated a `frameskip` flag and skipped `Render()`/`Present()` for non-RTT frames. Android exposed frame-skip up/down buttons wired to `JNIdc.frameskip`. 05571cf7e 2014-01 “Frameskip, unstable opts” · c74f91d42 2013-12 “PANDORA: Force 1 frameskip (seems useless)” · 94879b0ca 2014-02 “Repurpose fast forward as actual frame skipping options”
 
 ### mgba-058 — Release the shared lock before slow work
-Lens: concurrency · Source: mGBA
+Lens: concurrency · Source: mGBA · Also: ares
 Principle: Hold a lock only while copying shared data out. Unlock before rendering, I/O or a vsync-blocked swap so the other thread can keep going.
 Why it is faster: —
 Applies elsewhere: snapshot a config map under a lock, then serialise and send it after unlocking.
 Watch out: —
-Seen in mGBA: `GBASyncWaitFrameEnd()` now runs right after the frame is copied (`postFrame`/dequeue), before `drawFrame` and the swap, in Qt and both SDL GL runloops. This fixed fast-forward stalls. 34d0dff2d 2015-11 “OpenGL: Fix fast-forward on some OpenGL drivers where it may block early”
+Seen in mGBA: `GBASyncWaitFrameEnd()` now runs right after the frame is copied (`postFrame`/dequeue), before `drawFrame` and the swap, in Qt and both SDL GL runloops. This fixed fast-forward stalls. 34d0dff2d 2015-11 “OpenGL: Fix fast-forward on some OpenGL drivers where it may block early” • Also seen in ares (ares-102): The PS1 `GPU::Blitter::refresh()`, which can run on the screen thread, held `vram.mutex` while converting every pixel. `queue()` now copies only the display rectangle row by row into the blitter's own 1 MiB `vram` under the lock. `refresh()` reads that copy without locking. 0af2690e5 2024-04 “ps1: blitter now uses a copy of the display area”
 
 ### mgba-059 — Bounded buffer pool with a free list; overwrite the oldest when full
 Lens: allocation · Source: mGBA
@@ -515,12 +515,12 @@ Watch out: —
 Seen in mGBA: The console file browser used to open every file in every subdirectory and run `filter()` to decide whether to list the folder. It now lists folders unconditionally. 8284e7ded 2015-10 “GUI: Don't scan subdirectories immediately”
 
 ### mgba-065 — Allocate textures once, update in place, describe native layout
-Lens: gpu-rendering · Source: mGBA
+Lens: gpu-rendering · Source: mGBA · Also: Flycast
 Principle: Re-specifying a texture every frame can force the driver to reallocate. Allocate storage once and update only the visible region. Describe the source's stride and channel order instead of converting it on the CPU.
 Why it is faster: —
 Applies elsewhere: WebGL `texSubImage2D` into a preallocated texture, with `UNPACK_ROW_LENGTH` for strided video frames.
 Watch out: —
-Seen in mGBA: SDL GL allocates the texture once with `glTexImage2D(…, NULL)` and uploads 240×160 per frame with `glTexSubImage2D`. The GL2 path uses an NPOT 240×160 texture with `GL_UNPACK_ROW_LENGTH = 256`. Qt uses `Format_RGBX8888` instead of an `rgbSwapped()` copy. 71e5aacd5 2015-01 “SDL: Faster texture uploads for GL using glTexSubImage2D” · b48ecd41d 2015-10 “OpenGL: Use NPOT textures for GL2” · 192904789 2015-08 “Qt: Use Format_RGBX8888 to avoid having to swap channels”
+Seen in mGBA: SDL GL allocates the texture once with `glTexImage2D(…, NULL)` and uploads 240×160 per frame with `glTexSubImage2D`. The GL2 path uses an NPOT 240×160 texture with `GL_UNPACK_ROW_LENGTH = 256`. Qt uses `Format_RGBX8888` instead of an `rgbSwapped()` copy. 71e5aacd5 2015-01 “SDL: Faster texture uploads for GL using glTexSubImage2D” · b48ecd41d 2015-10 “OpenGL: Use NPOT textures for GL2” · 192904789 2015-08 “Qt: Use Format_RGBX8888 to avoid having to swap channels” • Also seen in Flycast (flycast-174): GL texture uploads split into `UploadToGPUGl2` (`glTexImage2D`) and `UploadToGPUGl4` (`glTexStorage2D` on the first update, `glTexSubImage2D` afterwards). The choice is made once in `setUploadToGPUFlavor()` and stored in a static member-function pointer: `static void (TextureCacheData::*uploadToGpu)(int, int, const u8 *, bool, bool);`. Single-channel textures moved from `GL_ALPHA` to `GL_RED`/`GL_R8`, because immutable storage only accepts red. 8715e5a5e 2024-01 “gl: use glTexStorage/glTexSubImage to update textures when available” · 3469b7fca 2024-02 “gl: use red for single channel textures instead of alpha on GLES3” · 130675aae 2025-03 “gles3: use GL_R8 internal format for fog texture”
 
 ### mgba-066 — Use a tuned library for standard pixel operations
 Lens: simd · Source: mGBA
@@ -651,20 +651,20 @@ Watch out: —
 Seen in mGBA: The GBA software renderer keeps a 160-bit `scanlineDirty` bitmap and a per-line copy of the video I/O registers. A line is redrawn only if it is dirty or `memcmp(nextIo, cache[y].io)` differs. Writes to VRAM, palette or OAM mark all lines dirty, and a clean line keeps last frame's pixels. The mechanism is still in use today. ec25074ce 2017-08 “GBA Video: Mark scanlines as dirty if they need to be updated”; e71baacd2 2017-08 “GBA Video: Scanline-level I/O caching”
 
 ### mgba-082 — Compare before storing so unchanged writes don't invalidate anything
-Lens: laziness · Source: mGBA
+Lens: laziness · Source: mGBA · Also: PostgreSQL
 Principle: A spurious invalidation (cache flush, notification, re-render) usually costs far more than one comparison. Load the old value and skip the write, and its side effects, when nothing changed.
 Why it is faster: —
 Applies elsewhere: reactive stores skipping emits when `Object.is(old,new)`; skipping a style assignment when the value is unchanged; SQL `UPDATE ... WHERE col IS DISTINCT FROM`.
 Watch out: —
-Seen in mGBA: Stores to VRAM, palette and OAM now do `LOAD old; if (old != value) { STORE; renderer->write...(); }`. Games that rewrite identical data no longer dirty the scanline cache or flood the threaded renderer. The check is still in `gba/memory.c`. ec25074ce 2017-08 “GBA Video: Mark scanlines as dirty if they need to be updated”
+Seen in mGBA: Stores to VRAM, palette and OAM now do `LOAD old; if (old != value) { STORE; renderer->write...(); }`. Games that rewrite identical data no longer dirty the scanline cache or flood the threaded renderer. The check is still in `gba/memory.c`. ec25074ce 2017-08 “GBA Video: Mark scanlines as dirty if they need to be updated” • Also seen in PostgreSQL (postgresql-052): df3e7b3a519 2002-09-22 The pg_class row is not rewritten when its statistics are already correct. • 4c9f50d1164 2021-06-30 pg_checksums skips rewriting blocks whose checksum already matches. • 33c77cfad3e 2026-08-12 REFRESH MATERIALIZED VIEW updates `relispopulated` only if it changes; 400a790a48e skips a walreceiver status reply when the apply location did not advance.
 
 ### mgba-083 — Set a dirty flag on write and rebuild derived data on read
-Lens: laziness · Source: mGBA
+Lens: laziness · Source: mGBA · Also: Flycast
 Principle: When a derived table depends on inputs that change more often than the table is consumed, don't rebuild it on every change. Mark it dirty and rebuild once at the next use, so N writes cost one recompute.
 Why it is faster: —
 Applies elsewhere: layout engines marking nodes dirty and laying out once per frame; lazily recomputed spreadsheet cells.
 Watch out: —
-Seen in mGBA: Each write to `BLDY` or `BLDCNT` used to call `_updatePalettes()` straight away, recomputing 512 entries. The write now sets `blendDirty` (only if the value changed), and `DrawScanline` rebuilds at most once per line. 1bb496d0f 2017-02 “GBA Video: Optimize when BLD* registers are written frequently”
+Seen in mGBA: Each write to `BLDY` or `BLDCNT` used to call `_updatePalettes()` straight away, recomputing 512 entries. The write now sets `blendDirty` (only if the value changed), and `DrawScanline` rebuilds at most once per line. 1bb496d0f 2017-02 “GBA Video: Optimize when BLD* registers are written frequently” • Also seen in Flycast (flycast-150): GL and GL4 updated the fog table and palette textures (guarded by `fog_needs_update`/`palette_updated`) in `RenderFrame`. That moved into `OpenGLRenderer::Process()`, with virtual `getFogTextureSlot()`/`getPaletteTextureSlot()`. The AICA DSP JIT only recompiles when `dirty` is set. `DSPState` deserialization now sets `dirty = true` (except during rollback), so a loaded state gets recompiled. e02ccbf32 2021-09 “gl: update fog and texture palette in Process()” · d7c28a480 2023-12 “aica: recommpile dsp when loading a state”
 
 ### mgba-084 — Invalidate many cache entries at once with version counters
 Lens: lookup-tables · Source: mGBA
@@ -1507,12 +1507,12 @@ Watch out: —
 Seen in mGBA: The per-frame callbacks, the `mAudioBufferAvailable` query and the `postAudioBuffer` call now all sit under one `if (audio->p->stream)`. 2bce03023 2024-04 “GB, GBA Audio: Refactor stream code to do less when no stream is present”
 
 ### mgba-189 — Give queues skip and early-exit operations that only move indices
-Lens: allocation · Source: mGBA
+Lens: allocation · Source: mGBA · Also: Tokio
 Principle: To discard data from a buffer, advance the read index instead of copying the data into scratch memory. Return immediately on degenerate calls, and offer truncating writes so callers don't have to fail and retry.
 Why it is faster: —
 Applies elsewhere: a protocol parser skips an ignored payload by moving its cursor, as Kafka consumers do with offset commits.
 Watch out: —
-Seen in mGBA: `mCircleBufferRead(buf, NULL, n)` now drops n bytes without a memcpy, which the resampler uses to release consumed source samples. `mAudioBufferRead` returns 0 immediately when the destination is full. `mCircleBufferWriteTruncate` writes as much as fits. 96a2ef5f4 2024-04 “Util: Enable dropping part of a circle buffer with a null read”; 55add8a2c 2024-04 “Util: Early exist mAudioBufferRead if the buffer is full”; c689a7fd4 2024-04 “Util: Add CircleBufferWriteTruncate”
+Seen in mGBA: `mCircleBufferRead(buf, NULL, n)` now drops n bytes without a memcpy, which the resampler uses to release consumed source samples. `mAudioBufferRead` returns 0 immediately when the destination is full. `mCircleBufferWriteTruncate` writes as much as fits. 96a2ef5f4 2024-04 “Util: Enable dropping part of a circle buffer with a null read”; 55add8a2c 2024-04 “Util: Early exist mAudioBufferRead if the buffer is full”; c689a7fd4 2024-04 “Util: Add CircleBufferWriteTruncate” • Also seen in Tokio (tokio-048): c3d56b85c3 2020-01-30 `FramedWrite` and `length_delimited` changed `let _ = buffer.split_to(n)` to `buffer.advance(n)`.
 
 ### mgba-190 — Make alignment fast-path checks exactly as strict as the access size
 Lens: memory-layout · Source: mGBA
@@ -1699,12 +1699,12 @@ Watch out: —
 Seen in mGBA: `PainterGL::updateFramebufferHandle` changed `glFinish()` to `glFlush()`. A dedicated OpenGL proxy thread was tried and then removed. It was replaced by `mVideoProxyBackend`, which marshals VideoBackend calls as `mVideoBackendCommand` records through a `RingFIFO`. 455e34edc 2022-12 “Qt: glFlush is (thankfully) sufficient here”; 6aa558c4a 2022-11 “Qt: Move OpenGL proxy onto its own thread”; 727ba5b2f 2023-04 “Qt: Rip out OpenGL proxy thread”; dc6639b30 2023-04 “Video: Add backend call proxying for cross-thread interaction”
 
 ### mgba-213 — Block on vsync only when you want pacing, and cache driver state
-Lens: platform · Source: mGBA
+Lens: platform · Source: mGBA · Also: Flycast
 Principle: A swap interval of 1 limits frame rate to the display's refresh rate. Turn it off only when uncapped throughput is wanted, and call the driver only when the desired value changes.
 Why it is faster: —
 Applies elsewhere: a video editor disables vsync while exporting, and a game turns it off for benchmark mode.
 Watch out: —
-Seen in mGBA: `PainterGL::draw` computes `wantSwap = audioWait || videoFrameWait` and calls the platform swap-interval function (WGL, GLX, EGL or CGL) only when `m_swapInterval` differs from it. Vsync is therefore off only while fast-forwarding. 7337edb82 2023-04 “Qt: Manually toggle swap interval as needed”; ae75abb8f 2023-04 “Qt: Only disable swapInterval when fast-forwarding”
+Seen in mGBA: `PainterGL::draw` computes `wantSwap = audioWait || videoFrameWait` and calls the platform swap-interval function (WGL, GLX, EGL or CGL) only when `m_swapInterval` differs from it. Vsync is therefore off only while fast-forwarding. 7337edb82 2023-04 “Qt: Manually toggle swap interval as needed”; ae75abb8f 2023-04 “Qt: Only disable swapInterval when fast-forwarding” • Also seen in Flycast (flycast-132): A `swapOnVSync` flag follows `settings.input.fastForwardMode`. EGL, SDL and GLX switch the swap interval, and Vulkan recreates the swap chain with `eImmediate` instead of FIFO or mailbox. 3474901e5 2021-04 “wsi: swap immediately when fast forwarding” • Also seen in Flycast (flycast-152): `EmuGLView.draw()` on macOS called `CGLSetParameter(..., kCGLCPSwapInterval, &sync)` on every frame. It now remembers `swapOnVSync` and calls `CGLSetParameter` only when the desired state (`!emu_fast_forward() && emu_vsync_enabled()`) differs. 7a33ae35e 2021-08 “[macOS] Fix DelayFrameSwapping and optimise Vsync logic (#307)”
 
 ### mgba-214 — Load a hot working set eagerly before latency-sensitive work starts
 Lens: io · Source: mGBA
@@ -1747,12 +1747,12 @@ Watch out: —
 Seen in mGBA: `Patch::applyPatch` and the IPS, UPS and BPS implementations now take `const void* restrict in, void* restrict out`. `common.h` maps `restrict` to `__restrict` for MSVC and C++. a55c6acc2 2026-03 “Util: Modernize API a bit with restrict, use NULL init”
 
 ### mgba-219 — Dispatch through a dense table of fully specialized handlers
-Lens: lookup-tables · Source: mGBA
+Lens: lookup-tables · Source: mGBA · Also: ares
 Principle: For a dense opcode space, index a precomputed array of handler functions with the opcode bits. Generate one variant per mode combination, so no handler needs runtime decode branches. Dispatch becomes one load and an indirect call.
 Why it is faster: —
 Applies elsewhere: bytecode VMs with 256-entry handler tables or computed gotos, and protocol parsers dispatching on message type.
 Watch out: —
-Seen in mGBA: `ARMStep` calls `_armTable[((op>>16)&0xFF0)|((op>>4)&0xF)]`, a 4096-entry table, and Thumb uses `_thumbTable[op>>6]`. The handlers are generated by the macros in `emitter-arm.h` and `isa-arm.c`, with one per addressing mode and S-bit setting. current code: src/arm/arm.c, src/arm/isa-arm.c, include/mgba/internal/arm/emitter-arm.h
+Seen in mGBA: `ARMStep` calls `_armTable[((op>>16)&0xFF0)|((op>>4)&0xF)]`, a 4096-entry table, and Thumb uses `_thumbTable[op>>6]`. The handlers are generated by the macros in `emitter-arm.h` and `isa-arm.c`, with one per addressing mode and S-bit setting. current code: src/arm/arm.c, src/arm/isa-arm.c, include/mgba/internal/arm/emitter-arm.h • Also seen in ares (ares-027): The M68K constructor fills a 65,536-entry `instructionTable` using `bind(opcode, NAME, EffectiveAddress{mode, reg}, …)` lambdas over every register and mode combination. `instruction()` is just `instructionTable[readPC()]()`. The changelog explains this "extreme templating" as a way "to reduce instruction decoding overhead". Conversely, the TLCS900H changelog says routing register access through a switch rather than unrolled 3-bit indexes "is going to hurt the performance a good deal". 37b610da5 2019-01 “Update to v106r83 release.” · 41148b102 2019-01 “Update to v106r74 release.” • Also seen in ares (ares-164): `M68000::instruction()` is `return instructionTable[r.ird]();`. The constructor fills `std::function<void ()> instructionTable[65536]` with lambdas that capture the decoded register and size arguments, so a handler does not decode its operands. current code: ares/component/processor/m68000/instruction.cpp
 
 ### mgba-220 — Evaluate small boolean functions with a truth-table bitmask, common case first
 Lens: lookup-tables · Source: mGBA
@@ -1867,12 +1867,12 @@ Watch out: —
 Seen in mGBA: `_vfdMap` uses `mmap` (`MAP_PRIVATE` or `MAP_SHARED`) on POSIX and `MapViewOfFile` on Windows. Work RAM is allocated with `anonymousMemoryMap(EWRAM+IWRAM)`. current code: src/util/vfs/vfs-fd.c, src/gba/memory.c
 
 ### mgba-234 — Use a lock-free SPSC ring for one-producer, one-consumer streams
-Lens: concurrency · Source: mGBA
+Lens: concurrency · Source: mGBA · Also: ares
 Principle: With exactly one producer and one consumer, each side owns one index and publishes it with an atomic store, after a memcpy of the payload. No mutex is needed.
 Why it is faster: —
 Applies elsewhere: passing parameters from the UI thread to the audio thread, and kernel/user io_uring rings.
 Watch out: —
-Seen in mGBA: `RingFIFO` moves its pointers with `ATOMIC_LOAD_PTR`/`ATOMIC_STORE_PTR`. It carries the threaded video proxy's register, VRAM and OAM writes, and the `mVideoProxyBackend` commands. current code: src/util/ring-fifo.c, src/feature/video-logger.c, src/gba/extra/proxy.c
+Seen in mGBA: `RingFIFO` moves its pointers with `ATOMIC_LOAD_PTR`/`ATOMIC_STORE_PTR`. It carries the threaded video proxy's register, VRAM and OAM writes, and the `mVideoProxyBackend` commands. current code: src/util/ring-fifo.c, src/feature/video-logger.c, src/gba/extra/proxy.c • Also seen in ares (ares-159): `queue_spsc<T[Size]>`: `size() = (_write - _read) % (2*Size)`, and the write index cycles through [2·Size, 4·Size). `await_read`/`await_write` spin with `spinloop()`. The PS1 GPU renderer thread consumes `queue_spsc<Render[65536]>`. current code: nall/nall/queue/spsc.hpp
 
 ### mgba-235 — Store the full hash with each entry; grow geometrically with a fresh seed
 Lens: algorithms · Source: mGBA
