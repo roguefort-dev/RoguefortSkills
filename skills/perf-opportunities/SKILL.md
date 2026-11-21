@@ -1,6 +1,6 @@
 ---
 name: perf-opportunities
-description: Run a complete performance review of a codebase (or a directory, file, or diff), reading every source file and cross-referencing the code against a library of 3,800+ distinct optimization techniques mined from the commit histories of Redis, nginx, SQLite, RocksDB, HAProxy, DuckDB, PostgreSQL, Seastar, curl, Netty, Tokio and ten console emulators, then write every optimization opportunity found to a plain performance-opportunities.html report. Use when the user asks to "find optimization opportunities", "what could be faster here", "performance audit", "perf review", "where is this slow", or wants a performance opportunity document. This skill finds and documents opportunities; it does not apply them unless asked.
+description: Run a complete performance review of a codebase (or a directory, file, or diff), reading every source file and cross-referencing the code against a library of 5,300+ distinct optimization techniques mined from the commit histories of 34 performance-critical projects (Redis, nginx, SQLite, RocksDB, PostgreSQL, DuckDB, Pebble, TigerBeetle, Kafka, NATS, Aeron, HAProxy, Envoy, H2O, Varnish, memcached, Netty, Tokio, Seastar, libuv, curl, jemalloc, zstd, simdjson and ten console emulators), then write every optimization opportunity found to a plain performance-opportunities.html report. Use when the user asks to "find optimization opportunities", "what could be faster here", "performance audit", "perf review", "where is this slow", or wants a performance opportunity document. This skill finds and documents opportunities; it does not apply them unless asked.
 ---
 
 # Performance opportunities
@@ -9,7 +9,7 @@ You are reviewing code for ways to make it faster or lighter, and writing up eve
 
 It is complete. Every source file in scope gets read, and every place where a known technique applies gets reported, whether or not that code is on a hot path. The user wants the full inventory of what could be optimized and will decide for themselves what is worth doing. Do not skip code because it runs rarely, and do not drop an opportunity because its gain looks small; record how often the code runs so the reader can weigh it.
 
-It is grounded. Every opportunity cites a technique that a mature, performance-critical project actually shipped. The `references/` folder holds 3,884 such techniques, deduplicated across projects, each a domain-generic principle with the evidence of how the source project used it. Your job is to read the target code closely, find every site whose code meets a technique's precondition, and document each match so a developer can act on it.
+It is grounded. Every opportunity cites a technique that a mature, performance-critical project actually shipped. The `references/` folder holds 5,307 such techniques, deduplicated across projects, each a domain-generic principle with the evidence of how the source project used it. Your job is to read the target code closely, find every site whose code meets a technique's precondition, and document each match so a developer can act on it.
 
 The reader of the report is a developer who knows their codebase but has not seen the technique library. They will decide what to implement from your document alone, so each entry has to show the exact code, say what would change, and be honest about how sure you are.
 
@@ -21,7 +21,7 @@ The reader of the report is a developer who knows their codebase but has not see
 
 The index files total about 660 KB and the cards about 4 MB. Read index files whole; pull cards by id. Reading a whole cards file is rarely worth it.
 
-The source projects are mostly C and C++ systems software, plus Netty (Java/JVM) and Tokio (Rust), but the principles were written to be domain-generic and each card names applications elsewhere (web backends, frontends, data pipelines, embedded). A technique from an emulator's renderer can be the right answer for a React list or a Python ETL job. Match on the shape of the work, and ignore the source domain.
+The source projects are mostly C and C++ systems software, plus Java/JVM (Netty, Kafka, Aeron), Rust (Tokio), Go (Pebble, NATS) and Zig (TigerBeetle), but the principles were written to be domain-generic and each card names applications elsewhere (web backends, frontends, data pipelines, embedded). A technique from an emulator's renderer can be the right answer for a React list or a Python ETL job. Match on the shape of the work, and ignore the source domain.
 
 ## How to run the review
 

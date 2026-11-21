@@ -283,12 +283,12 @@ Watch out: —
 Seen in PCSX2: The MTGS ring buffer between the EE thread and the GS thread grew from 2 MB to 8 MB (`m_RingBufferSizeFactor` 17 → 19), which fixed slowness in data-heavy games such as the Xenosaga series. a0e6c8c26 2009-03 “Increased the MTGS ringbuffer from 2 to 8mb. Fixes slowness in games with lots of data moving”
 
 ### pcsx2-036 — Drop thread-safety the program doesn't need
-Lens: concurrency · Source: PCSX2
+Lens: concurrency · Source: PCSX2 · Also: memcached
 Principle: Libraries and drivers often lock on every call when asked for multithreaded mode. If the program already guarantees single-threaded access to an object, request the single-threaded variant and skip the per-call locking.
 Why it is faster: —
 Applies elsewhere: SQLite `SQLITE_OPEN_NOMUTEX`, `StringBuilder` instead of `StringBuffer`, `Rc` instead of `Arc` in Rust, non-atomic refcounts in single-threaded runtimes.
 Watch out: —
-Seen in PCSX2: GSdx stopped passing `D3DCREATE_MULTITHREADED` to DX9 and now sets `D3D10/11_CREATE_DEVICE_SINGLETHREADED`, since only the GS thread uses the device. 0b6ed4bc1 2009-07 “GSdx: Disabled requesting of thread safe D3D devices. This is a speedup”
+Seen in PCSX2: GSdx stopped passing `D3DCREATE_MULTITHREADED` to DX9 and now sets `D3D10/11_CREATE_DEVICE_SINGLETHREADED`, since only the GS thread uses the device. 0b6ed4bc1 2009-07 “GSdx: Disabled requesting of thread safe D3D devices. This is a speedup” • Also seen in memcached (memcached-082): 56b8339e06 2007-04-16 `do_*` functions hold the logic and `mt_*` wrappers add locks. In single-threaded builds the macros map straight to `do_*` and `STATS_LOCK()` compiles to nothing ("the most CPU-efficient mode"). a9dcd9aceb 2008-04-28 later drops the single-threaded build. • f4c550f664 2016-12-31 Splits `cache_alloc`/`cache_free` into lock wrappers around `do_cache_alloc`/`do_cache_free`. Per-worker suffix and IO caches call the unlocked versions ("pools are per-thread however"). • 1276ad27dd 2018-02-16 Main and worker libevent bases are created with `EVENT_BASE_FLAG_NOLOCK`. d22b66483b 2020-06-10 The proxy IO thread's base is also NOLOCK, because it owns its backends outright.
 
 ### pcsx2-037 — Block on events instead of sleep-polling, and use fine timer resolution
 Lens: concurrency · Source: PCSX2
@@ -939,12 +939,12 @@ Watch out: —
 Seen in PCSX2: An earlier fix pushed every incomplete GS packet to the MTGS thread. `Gif_Unit::FlushToMTGS()` is now called only when `GS_BUSDIR` switches to GS→EE (a download), and it sends only completed primitives. The commit message: “doing it this way should be faster than flushing every incomplete gs packet”. c918df60d 2011-07 “newGif: do what r4829 did, except only flush the gs primitives to the mtgs when theres going to be a GS download (busdir=1).”
 
 ### pcsx2-118 — Have the blocker wake the waiter instead of polling
-Lens: laziness · Source: PCSX2
+Lens: laziness · Source: PCSX2 · Also: memcached
 Principle: A waiter that reschedules itself every few ticks to check a condition can spin through thousands of useless wake-ups, each with its own dispatch overhead. Stop rescheduling while the condition is false, and have whoever clears the condition wake the waiter directly.
 Why it is faster: —
 Applies elsewhere: promises or condition variables instead of `setInterval` polling, epoll instead of a non-blocking read loop, webhooks instead of polling a status API.
 Watch out: —
-Seen in PCSX2: When VIF1 is waiting on GIF path 3 (`vif1Regs.stat.VGW && gifPath[GIF_PATH_3].state != GIF_PATH_IDLE`), `vif1Interrupt` and `vifMFIFOInterrupt` no longer re-queue `CPU_INT(DMAC_VIF1, …)`. Instead, `gifInterrupt` fires `CPU_INT(DMAC_VIF1, 1)` when path 3 finishes. The loop had been running “over 1000 times”. Reported results: Outrun 2006 went from 43–46 to 45–47 fps and GTA:SA from 63–67 to 66–70. GIF likewise stops re-scheduling itself while path 3 is masked, so the recompiler exits less often. 489bce662 2012-05 “Path 3 games speed up. Stopping VIF looping when waiting for Path 3 to finish” · 098640b06 2012-05 “Path3: Stopped Path3 looping when MskPath3 is enabled” · 64447dd23 2012-06 “Path3 Masking: Optimization got missed during r5277 revert.”
+Seen in PCSX2: When VIF1 is waiting on GIF path 3 (`vif1Regs.stat.VGW && gifPath[GIF_PATH_3].state != GIF_PATH_IDLE`), `vif1Interrupt` and `vifMFIFOInterrupt` no longer re-queue `CPU_INT(DMAC_VIF1, …)`. Instead, `gifInterrupt` fires `CPU_INT(DMAC_VIF1, 1)` when path 3 finishes. The loop had been running “over 1000 times”. Reported results: Outrun 2006 went from 43–46 to 45–47 fps and GTA:SA from 63–67 to 66–70. GIF likewise stops re-scheduling itself while path 3 is masked, so the recompiler exits less often. 489bce662 2012-05 “Path 3 games speed up. Stopping VIF looping when waiting for Path 3 to finish” · 098640b06 2012-05 “Path3: Stopped Path3 looping when MskPath3 is enabled” · 64447dd23 2012-06 “Path3 Masking: Optimization got missed during r5277 revert.” • Also seen in memcached (memcached-100): 7f09e20ba5 2009-01-27 `assoc_expand()` only signals `maintenance_cond`, and the expansion thread waits on it. • 57a9856a2f 2012-07-15 The rebalancer waits on `slab_rebalance_cond`, and `slabs_reassign` signals it, so "it should start moving a page instantly". 0d1f505c15 2014-04-14 the LRU crawler wakes the same way. • 2896cc6c49 2020-11-12 The idle-timeout thread uses `cond_timedwait` so shutdown doesn't wait out the full sleep. d63db64889 2021-08-09 the logger thread "would wake up once per second looking for watchers … Now sleeps on a condition".
 
 ### pcsx2-119 — Shadow GPU state and skip redundant API calls
 Lens: gpu-rendering · Source: PCSX2
@@ -995,12 +995,12 @@ Watch out: —
 Seen in PCSX2: GSdx's `GSState` gained `m_vertex` (head/tail/stride) and `m_index` buffers. For `GS_TRIANGLESTRIP`, `VertexKick` now writes `buff[0..2] = head+0..2` and advances `head` by one instead of copying three vertices. The buffers grow by 1.5× with a −100 slack, so that skipped vertices never trigger growth inside the hot `VertexKick`. f68f007f0 2012-01 “GSdx: the promised index buffer update, needed a lot of changes”
 
 ### pcsx2-125 — One large read instead of a read and seek per record
-Lens: io · Source: PCSX2
+Lens: io · Source: PCSX2 · Also: NATS
 Principle: Reading a small header and then seeking past each fixed-size record costs one system call per record. Read big chunks, such as 1 MB, and walk the records inside memory, carrying the offset over to the next chunk.
 Why it is faster: —
 Applies elsewhere: scanning fixed-width logs, building an index over a tar-like archive, or parsing records from flash on an MCU in page-sized reads.
 Watch out: —
-Seen in PCSX2: `BlockdumpFileReader::Open` built its sector table with a `Read(4)` followed by `SeekI(m_blocksize)` for every block. It now reads 1 MB at a time and pulls each `u32` out at `off += 4 + m_blocksize`, carrying `off -= has` into the next chunk. 187175073 2012-12 “Attempt at making blockdump loading faster, may go either way.”
+Seen in PCSX2: `BlockdumpFileReader::Open` built its sector table with a `Read(4)` followed by `SeekI(m_blocksize)` for every block. It now reads 1 MB at a time and pulls each `u32` out at `off += 4 + m_blocksize`, carrying `off -= has` into the next chunk. 187175073 2012-12 “Attempt at making blockdump loading faster, may go either way.” • Also seen in NATS (nats-148): e8f465eaf3 2020-05-19 "Filestore read perf": `bufio` plus `io.CopyN(ioutil.Discard)` replaced by `ReadFile` of the block and an index walk; default block size cut from 512 MB to 128 MB. • b358773ddf 2021-02-06 `rebuildState` stops looping `ReadAt(hdr)` per record, reads the block once, verifies checksums in memory and truncates at the first bad record. • b3753aba1b 2021-06-22 `loadBlock()` stats the file and allocates exactly once. • 960c45df81 2021-07-06 `loadBlock(buf)` reuses the caller's buffer when capacity suffices and uses `io.ReadFull`; `streamSnapshot` reuses one buffer across all blocks.
 
 ### pcsx2-126 — Asynchronous, read-ahead disc I/O
 Lens: io · Source: PCSX2
@@ -1083,12 +1083,12 @@ Watch out: —
 Seen in PCSX2: `GSDevice11::Create` and `GSDevice9::Create` used to compile the FXAA pixel shader every time. The compile is now wrapped in `if (Use_FXAA_Shader)`, which reads the `Fxaa` config, so switching between software and hardware modes no longer stalls on a shader compile that is slow and usually not needed. 5e22971db 2014-01 “GSDX: New shader is quite slow to compile, so lets not compile it unless the user is using it”
 
 ### pcsx2-136 — Keep diagnostics out of release hot paths
-Lens: branching-fast-paths · Source: PCSX2
+Lens: branching-fast-paths · Source: PCSX2 · Also: TigerBeetle
 Principle: A check that runs once per item multiplies its cost by the item count, even when it never fires. Put breakpoint checks, debug dumps, console logging and performance counters behind compile-time switches, or demote them to developer-only logging, so release builds don't run them in tight loops.
 Why it is faster: —
 Applies elsewhere: guard verbose logs with `if (log.isDebugEnabled())`. Compile tracing out of embedded firmware. Rate-limit log lines that a request handler writes.
 Watch out: —
-Seen in PCSX2: The EE interpreter's `execI()` runs once per emulated instruction. It used to check breakpoints and memchecks and call `debugI()` each time. That code now sits under `#ifdef EXTRA_DEBUG`, which made the interpreter about 2–2.5× faster. Separately, an unimplemented-path message in `SPR.cpp` that printed every frame caused fps drops, and it became a `DevCon` warning. GSdx's `GSPerfMon` was compiled out of Linux release builds (`DISABLE_PERF_MON`), with an expected 5–10% gain. c9aa04c67 2014-11 “core: EE interpreter major speed boost” · 5c6b5374a 2015-02 “Less verbose SPR stall control logging, avoids fps dives in ST:Voyager” · 0663501d6 2015-08 “gsdx-linux: disable perf monitor on release build”
+Seen in PCSX2: The EE interpreter's `execI()` runs once per emulated instruction. It used to check breakpoints and memchecks and call `debugI()` each time. That code now sits under `#ifdef EXTRA_DEBUG`, which made the interpreter about 2–2.5× faster. Separately, an unimplemented-path message in `SPR.cpp` that printed every frame caused fps drops, and it became a `DevCon` warning. GSdx's `GSPerfMon` was compiled out of Linux release builds (`DISABLE_PERF_MON`), with an expected 5–10% gain. c9aa04c67 2014-11 “core: EE interpreter major speed boost” · 5c6b5374a 2015-02 “Less verbose SPR stall control logging, avoids fps dives in ST:Voyager” · 0663501d6 2015-08 “gsdx-linux: disable perf monitor on release build” • Also seen in TigerBeetle (tigerbeetle-026): c97fbf08b1 2023-02-28 The benchmark uses the production config to disable verify's "extra checks that slow down normal operation". • 1f8c5bcce5 2023-08-31 The check that read data blocks are sorted runs only under `constants.verify`. • 5d54a32e5b 2024-03-18 FIFO `verify_push: bool`: the O(n) `assert(!contains(elem))` is skipped for large compaction block FIFOs. • 824277a67f 2024-08-13 Padding asserts in the inline `key_from_value`/`tombstone` are moved behind `constants.verify`. • b6c59b7c37 2024-12-31 Removes a per-compaction loop over every stash key (added in 1cbd482900) that hurt latency because releases ship with verify enabled.
 
 ### pcsx2-137 — Prefer the platform memcpy over hand-rolled copy loops
 Lens: compiler-build · Source: PCSX2
@@ -1107,12 +1107,12 @@ Watch out: —
 Seen in PCSX2: Full-screen copy quads (`StretchRect`, `SetupDATE`) sent `GSVertexPT1`, with a vec4 position whose z and w were always 0.5 and 1.0. A new 16-byte `GSVertexPxyT1` (vec2 position plus vec2 texcoord, explicitly 16-aligned so it doesn't pad to 32) halves the upload, and `convert.glsl` fills in z and w itself. 0d45e6d70 2014-04 “gsdx-ogl: avoid to send constant to the GPU”
 
 ### pcsx2-139 — Compare against a shadow copy before re-uploading
-Lens: laziness · Source: PCSX2
+Lens: laziness · Source: PCSX2 · Also: libuv, memcached
 Principle: Keep a copy of the last state you sent, and compare the new state with it (memcmp or a wide SIMD compare) before transferring. When nothing changed, skip the upload. The compare costs far less than the transfer and the driver work it would trigger.
 Why it is faster: —
 Applies elsewhere: React-style props equality before a re-render. Skip a DB write when the row hash is unchanged. Avoid re-sending identical MQTT retained messages.
 Watch out: —
-Seen in PCSX2: `GSUniformBufferOGL::cache_upload()` keeps a 32-byte-aligned `cache` of the previous contents and calls `upload()` only if `memcmp` differs. Earlier, the PS constant-buffer cache was trimmed so it skips fields that derive from others (MinMax follows WH and MskFix), and compares `GSVector4i` lanes in place instead of copying them to the stack first. fa15d7fd2 2016-05 “gsdx ogl: generic code to cache uniform buffer” · 6fe9ee387 2014-10 “gsdx-ogl: optimize the PS cb cache”
+Seen in PCSX2: `GSUniformBufferOGL::cache_upload()` keeps a 32-byte-aligned `cache` of the previous contents and calls `upload()` only if `memcmp` differs. Earlier, the PS constant-buffer cache was trimmed so it skips fields that derive from others (MinMax follows WH and MskFix), and compares `GSVector4i` lanes in place instead of copying them to the stack first. fa15d7fd2 2016-05 “gsdx ogl: generic code to cache uniform buffer” · 6fe9ee387 2014-10 “gsdx-ogl: optimize the PS cb cache” • Also seen in libuv (libuv-013): 1282d64868 2012-08-23 Each watcher keeps `events` (applied) and `pevents` (wanted). `uv__io_poll` does `if (w->events == w->pevents) continue;`, and kqueue emits EV_ADD only for newly appearing filters. • c98083ef26 2013-02-22 The check moves to `uv__io_start`, so an unchanged watcher is never queued (event ports excepted, since they re-arm every tick). 52ae826492 2017-02-15 simplifies that hot-path check. • b57dc51116 2026-08-20 Mirrors it in `uv__io_stop`, typically `uv__io_stop(POLLOUT)` after a synchronously completed write. Main-thread wakeups per round trip fell from 2.0 to 1.0, process CPU time fell 31% for embedders, and plain `uv_run` used 7.5% less CPU. • 80f6a9c643 2013-01-10 `uv__nonblock`/`uv__cloexec`: "Bail out now if already set/clear" omits the second `fcntl()`. 550147fd67 2015-01-12 `uv_tty_set_mode` returns early when the mode is unchanged. • a9e95a33bc 2014-12-27 An attempt to set `SO_REUSEADDR` only after `bind()` hit EADDRINUSE ("saves a system call in what is normally the common case") was reverted in ebc50aee1d 2014-12-29 after IPv6-disabled test regressions. • Also seen in memcached (memcached-011): 32f382b605 2003-05-27 `update_event()`: `if (c->ev_flags == new_flags) return;` before `event_del`/`event_set`/`event_add`. • 60a5ff1fc8 2003-08-12 `set_cork()` caches `is_corked` to skip redundant `setsockopt` calls. • a85a6e15d3 2008-04-29 Skips `memmove` when source equals destination (`if (c->ritem != c->rcurr)`). • 833a7234bb 2023-02-21 Proxy write and timeout helpers check `event_pending` before adding or removing an event, avoiding redundant `epoll_ctl` calls. • 48e6702582 2023-06-27 The IO-return notify path documents the contract that "we are only guaranteed to get syscalls if the queue is empty". • fd94be90ab 2023-06-28 `proxy_submit_cb` sets `do_notify` only if the IO thread's inbound queue was empty before the concat. Later producers skip the eventfd write.
 
 ### pcsx2-140 — Put frequently compared fields together at the front
 Lens: memory-layout · Source: PCSX2
@@ -1155,12 +1155,12 @@ Watch out: —
 Seen in PCSX2: On Win32, after each extract, `GzippedFileReader::AsyncPrefetchChunk` opens the file with `FILE_FLAG_OVERLAPPED | FILE_FLAG_SEQUENTIAL_SCAN` and issues an overlapped `ReadFile` of the next `READ_CHUNK_SIZE` into a dummy buffer. `AsyncPrefetchCancel` cancels it before the next real read. This often hides seek time on fragmented files. 6b4878470 2015-02 “gzip iso: reduce seek time on fragmented files by OS prefetch on win32”
 
 ### pcsx2-145 — Reset and reuse codec state instead of rebuilding it
-Lens: allocation · Source: PCSX2
+Lens: allocation · Source: PCSX2 · Also: Pebble
 Principle: Setting up and tearing down a decompressor allocates its windows and tables each time. Keep one instance and call its reset function between independent blocks.
 Why it is faster: —
 Applies elsewhere: reuse `zlib.Inflater` with `reset()` in Java. Pool `gzip.Reader` in Go with `Reset`. Reuse ZSTD_DCtx in servers.
 Watch out: —
-Seen in PCSX2: `CsoFileReader::ReadFromFrame` used to call `inflateInit2` and `inflateEnd` on a stack `z_stream` for every frame. Now a member `m_z_stream` is initialised once in `Open` and `inflateReset` runs after each frame. 49cfc3424 2015-04 “Keep around z_stream between decompression passes.”
+Seen in PCSX2: `CsoFileReader::ReadFromFrame` used to call `inflateInit2` and `inflateEnd` on a stack `z_stream` for every frame. Now a member `m_z_stream` is initialised once in `Open` and `inflateReset` runs after each frame. 49cfc3424 2015-04 “Keep around z_stream between decompression passes.” • Also seen in Pebble (pebble-077): 18864becbf 2025-04-07 `zstdCompressor{ctx zstd.Ctx}` in a `sync.Pool`, a `Close()` on compressors, and buffers pre-sized to `MaxVarintLen64+CompressBound`. • abc4ac2150 2025-04-11 Avoids compressing twice with the noop compressor. • a4f8e7e104 2025-06-02 One `TempBuffer` pool replaces separate compressed and uncompressed pools. `4b9290a541` (2025-07-29) puts the trailer in the same buffer, so one `Write` call is enough. • 0c92743053 2025-08-08 `DecompressedLen` and `DecompressInto` share one decompressor instead of two pool trips.
 
 ### pcsx2-146 — Keep the last file handle open and skip redundant seeks
 Lens: io · Source: PCSX2
@@ -1459,12 +1459,12 @@ Watch out: —
 Seen in PCSX2: `GSTextureCache::Source` gained a `dummy_container` argument. Shared-texture sources skip the `m_clut` and `m_write.rect` `_aligned_malloc`s, the `m_valid` memset and the page-to-tile map. The commit says this makes them almost free in CPU terms. 49d175b67 2016-04 “gsdx tc: allow to create a dummy Source without tons of memory allocation”
 
 ### pcsx2-183 — Share identical derived resources through a content-keyed pool
-Lens: caching · Source: PCSX2
+Lens: caching · Source: PCSX2 · Also: Envoy
 Principle: When many objects each build their own copy of the same derived resource (a GPU texture, a copied table), deduplicate them. Hash the content, look it up in a map of shared, reference-counted instances, and attach the existing one. Allocations, uploads and bus traffic all drop.
 Why it is faster: —
 Applies elsewhere: string interning. Content-addressed asset caches in game engines. Docker layer deduplication.
 Watch out: —
-Seen in PCSX2: A `PaletteMap` keyed by CLUT content (`PaletteKeyHash`/`PaletteKeyEqual`) gives each `Source` a `shared_ptr<Palette>` via `AttachPaletteToSource`, instead of creating and updating a 256×1 palette texture per source. ZoE2, which uses many palettes on few textures, ran 2× faster. A follow-up shares the CLUT copies even when 8-bit textures are disabled, for about 10% more. 9fa1b290b 2018-11 “GSdx-TC: Palette management rework. (#2344)” · 42aee3448 2018-11 “GSdx-TC: Use PaletteMap also when 8-bit texture is disabled by caching only clut copies. (#2681)”
+Seen in PCSX2: A `PaletteMap` keyed by CLUT content (`PaletteKeyHash`/`PaletteKeyEqual`) gives each `Source` a `shared_ptr<Palette>` via `AttachPaletteToSource`, instead of creating and updating a 256×1 palette texture per source. ZoE2, which uses many palettes on few textures, ran 2× faster. A follow-up shares the CLUT copies even when 8-bit textures are disabled, for about 10% more. 9fa1b290b 2018-11 “GSdx-TC: Palette management rework. (#2344)” · 42aee3448 2018-11 “GSdx-TC: Use PaletteMap also when 8-bit texture is disabled by caching only clut copies. (#2681)” • Also seen in Envoy (envoy-081): a66b51a68a 2020-02-25 `ObjectSharedPool<const Metadata>`; hosts hold `MetadataConstSharedPtr`: 1,619 to 1,363 bytes per host. • 74105a3b31 2022-12-19 `PathMatcher::createPrefix()` returns shared static instances for `""` and `/`, which are 75% of prefix matchers. • d68f7198a3 2025-10-22 A singleton locality pool deduplicates the locality proto every endpoint used to copy. • c761fec80d 2026-07-07 A parsed CRL is shared across TLS contexts; a duplicated 4.6 MB CRL had cost about 1 GiB at startup. • 474b655c4e 2026-10-30 SPIFFE validation relies on the shared cert cache for trust domains. • 56d0713f6e 2026-11-11 `SharedPemCache<T>` keyed by SHA-256 of the PEM for CA bundles, CRLs, cert chains and private keys; the FIPS key check runs once per distinct key.
 
 ### pcsx2-184 — Pick instruction sets at code-generation time, not build time
 Lens: jit-interpreters · Source: PCSX2 · Also: Flycast

@@ -43,12 +43,12 @@ Watch out: —
 Seen in Snes9x: `SMP::tick()` and `Timer::tick()` were declared out-of-line, and one commit marks them `inline` “to fix speed issues”. Another marks the ALU helpers `op_adc`, `op_and`, `op_cmp`, `op_asl` and others `inline`. Later the DSP voice-pipeline stages `VOICE_CLOCK(V3c)` and `VOICE_CLOCK(V4)` in `SPC_DSP.cpp` were also made `inline`. 2b5a54b4 2011-07 “Inline ticks. This should fix speed issues.” · 804d419b 2012-01 “Inline some functions to avoid vtable lookups.” · 97f4067c 2018-04 “Inline a couple functions. ...” • Also seen in ares (ares-146): SH-2 `MOVWI`, `MOVLI` and `MOVA` each consist of a PC computation and one read, and all three had `NALL_NOINLINE`. The commit removed it. ed1e34c74 2025-04 “remove errant NALL_NOINLINE macro from SH2 instructions”
 
 ### snes9x-006 — Use non-short-circuit boolean operators on cheap conditions
-Lens: branching-fast-paths · Source: Snes9x
+Lens: branching-fast-paths · Source: Snes9x · Also: zstd
 Principle: `&&` and `||` require a conditional jump per operand. When every operand is a cheap, side-effect-free comparison, `&` and `|` compute them all and combine the results without branching. That removes mispredictions on data-dependent conditions in hot paths.
 Why it is faster: —
 Applies elsewhere: bounds checks in image kernels (`(x>=0) & (x<w)`). Collision tests in game loops. Packet-filter predicates.
 Watch out: —
-Seen in Snes9x: `S9xCheckInterrupts` in `cpuexec.h` runs after every CPU instruction. Its compound tests were rewritten from `&&`/`||` to `&`/`|`, for example `if (CPU.PrevCycles >= htimepos | CPU.Cycles < htimepos)`. The commit reports an 11% speedup on x64. 2cbb3f6c 2018-03 “11% performance boost on x64 by reducing branches”
+Seen in Snes9x: `S9xCheckInterrupts` in `cpuexec.h` runs after every CPU instruction. Its compound tests were rewritten from `&&`/`||` to `&`/`|`, for example `if (CPU.PrevCycles >= htimepos | CPU.Cycles < htimepos)`. The commit reports an 11% speedup on x64. 2cbb3f6c 2018-03 “11% performance boost on x64 by reducing branches” • Also seen in zstd (zstd-082): a419777eb1 2017-03-01 `HUF_validateCTable` accumulates `bad |= (count[s] != 0) & (CTable[s].nbBits == 0)` over all symbols. Validation takes about 55 ns, down from 90 ns. • 3f457264d1 2017-11-19 Replaces `&&` with `&` where both sides are cheap, for example in the lazy catch-up loop `((start > anchor) & (start - … > base))` and the repcode loop `((ip <= ilimit) & (offset_2>0))`. • a101721f4e 2019-09-14 One `strstr` over a concatenated suffix list replaces up to five `strcmp` calls. • 718f00ff6f 2019-11-25 The four interleaved Huffman streams combine their reload statuses with `&` into one loop condition. cb2abc3dbe folded them into a single `LIKELY(a & b & c & d)`. • 68c14bdff2 2020-12-04 `*hasZeroWeights = (rankVal[0] > 0)` replaces `|= (w == 0)` in the fill loop: about 1-2% faster. • 5e9a6c2fe4 2024-05-29 `ZSTD_index_overlap_check` returns `(U32)((prefixLowestIndex-1) - repIndex) >= 3`, one unsigned compare in place of two compares and two branches.
 
 ### snes9x-007 — Rebuild derived data at the writer, not with a check in the reader
 Lens: laziness · Source: Snes9x
@@ -555,12 +555,12 @@ Watch out: —
 Seen in Snes9x: In win32/wsnes9x.cpp, opening some dialogs called `S9xGraphicsDeinit(); S9xGraphicsInit();`. Those calls were removed. In the Qt port, changing the OSD message mode or font size called `recreateCanvas()`, which rebuilt the whole OpenGL/Vulkan canvas. It now calls the new `recreateUIAssets()`, which only reinitialises ImGui with the new font. The Vulkan `Texture::from_buffer` only calls `destroy()`/`create()` when `width`/`height` differ from the existing image. 6e738950 2023-11 “win32: Don't realloc graphics buffers when dialog shown.” · 8bb1e774 2023-07 “UI element resize without canvas recreate...” · 259dfd07 2022-06 “Vulkan support.”
 
 ### snes9x-070 — Load independent assets in parallel
-Lens: concurrency · Source: Snes9x
+Lens: concurrency · Source: Snes9x · Also: H2O, Kafka
 Principle: If a pipeline needs N files that do not depend on each other, start every read or compile at once and join on the results. Start-up time then approaches the slowest single item, not the sum of all of them.
 Why it is faster: —
 Applies elsewhere: `Promise.all` over fetches, compiling shader variants on a thread pool at game start, parallel module loading in a bundler.
 Watch out: —
-Seen in Snes9x: `SlangPreset::load_preset_file` in vulkan/slang_preset.cpp called `shader.load_file()` on each pass one after another. It now starts `std::async(std::launch::async, ...)` for each pass and ANDs the `future.get()` results together. 8e38e14e 2023-02 “Vulkan/Slang: Load shader files asynchronously.”
+Seen in Snes9x: `SlangPreset::load_preset_file` in vulkan/slang_preset.cpp called `shader.load_file()` on each pass one after another. It now starts `std::async(std::launch::async, ...)` for each pass and ANDs the `future.get()` results together. 8e38e14e 2023-02 “Vulkan/Slang: Load shader files asynchronously.” • Also seen in H2O (h2o-100): 59df385f27 2017-11-21 "Parallel http join" in the mruby layer. • d99c4be20b 2017-11-30 A channel class and a task method for parallel processing in mruby. • Also seen in Kafka (kafka-109): e1ff387605 2025-07-14 `DelayedRemoteFetch` launches remote reads for all tiered partitions of a fetch and completes when all are done, cancelling the rest on expiry. • be368b3b6a 2025-12-03 `onPartitionsDeleted` collects offset-deletion and share-state futures into one list and waits once instead of two sequential `allOf().get()`.
 
 ### snes9x-071 — Move blocking output onto its own thread
 Lens: concurrency · Source: Snes9x
@@ -1219,12 +1219,12 @@ Watch out: —
 Seen in Snes9x: `SPC_DSP::run_counters()` just decrements `m.counter` over `simple_counter_range` (30720). Envelope code calls `read_counter(rate)` = `((unsigned) m.counter + counter_offsets[rate]) % counter_rates[rate]`, with the 32-entry rate and offset tables. current code: apu/bapu/dsp/SPC_DSP.cpp
 
 ### snes9x-153 — Order branches by measured frequency
-Lens: branching-fast-paths · Source: Snes9x
+Lens: branching-fast-paths · Source: Snes9x · Also: H2O
 Principle: Arrange if/else chains so the most frequent case is tested first and falls through, and record the measured frequencies in the code. The common path stays short and well-predicted.
 Why it is faster: —
 Applies elsewhere: HTTP routers checking hot routes first; tokenizers testing letters before rare punctuation; `likely()` annotations in kernels.
 Watch out: —
-Seen in Snes9x: `SPC_DSP::run_envelope` is annotated with frequencies: `if ( v->env_mode == env_release ) // 60%`, `if ( m.t_adsr0 & 0x80 ) // 99% ADSR`, `if ( v->env_mode >= env_decay ) // 99%`, `if ( v->env_mode == env_decay ) // 1%`. current code: apu/bapu/dsp/SPC_DSP.cpp (run_envelope)
+Seen in Snes9x: `SPC_DSP::run_envelope` is annotated with frequencies: `if ( v->env_mode == env_release ) // 60%`, `if ( m.t_adsr0 & 0x80 ) // 99% ADSR`, `if ( v->env_mode >= env_decay ) // 99%`, `if ( v->env_mode == env_decay ) // 1%`. current code: apu/bapu/dsp/SPC_DSP.cpp (run_envelope) • Also seen in H2O (h2o-019): ab5eefc377 2014-11-17 Header handling tests host, then content-length, transfer-encoding, expect and upgrade, ordered by how often each is seen. • 59a3998cb9 2018-01-18 `parse_hostport` first matches a dotted-quad IPv4 plus port with `sscanf` and builds `sockaddr_in` directly. It falls back to `getaddrinfo` only if that fails. • 047451fc38 2020-12-01 `quicly_send` tries the 1-RTT epoch before 0-RTT, "as the availability of the two epochs are mutually exclusive". • 4faf073191 2022-10-05 When there is a single cookie header, the proxy adds it directly by reference, with no join and no copy.
 
 ### snes9x-154 — Wraparound ring buffer with split block copies
 Lens: io · Source: Snes9x

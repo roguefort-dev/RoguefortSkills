@@ -523,12 +523,12 @@ Watch out: —
 Seen in ares: The N64 `CPU::roundNearest/Ceil/Floor/Trunc/Current` use `_mm_round_ss/sd` with `_MM_FROUND_*` on x86 and `vrndns_f32` on ARM64. Their `#if` now also requires `ARCHITECTURE_SUPPORTS_SSE4_1`. 191393445 2023-01 “build: guard usage of sse4.1 round instructions”
 
 ### ares-108 — Raise the ISA baseline and check it before startup
-Lens: compiler-build · Source: ares
+Lens: compiler-build · Source: ares · Also: TigerBeetle
 Principle: Targeting a newer, widely available instruction-set level lets the compiler use better instructions everywhere. To fail safely on older machines, run a CPUID check before any static initializer can execute a new instruction, and exit with a clear message.
 Why it is faster: —
 Applies elsewhere: distributions moving to x86-64-v2/v3, apps shipping AVX2 builds with a launcher check, `-mcpu` baselines for Android ABIs.
 Watch out: —
-Seen in ares: Official amd64 builds use `-march=x86-64-v2` (SSE4.2), and local builds keep `-march=native`. On Windows, `preCppInitializer` is placed in `.CRT$XCT` so it runs before C++ global constructors. It calls `__cpuid(…,1)` and calls `FatalAppExitA` if SSE4.2 is missing. A later `nall::instruction_set` adds general CPUID feature queries. 9b521dd87 2023-02 “desktop-ui: optimize for x86-64-v2 in non-local builds” · e4fee670a 2023-02 “desktop-ui: check for SSE4.2 support in non-local builds” · 10b747c30 2025-01 “nall: add instruction_set to query cpu features (#1751)”
+Seen in ares: Official amd64 builds use `-march=x86-64-v2` (SSE4.2), and local builds keep `-march=native`. On Windows, `preCppInitializer` is placed in `.CRT$XCT` so it runs before C++ global constructors. It calls `__cpuid(…,1)` and calls `FatalAppExitA` if SSE4.2 is missing. A later `nall::instruction_set` adds general CPUID feature queries. 9b521dd87 2023-02 “desktop-ui: optimize for x86-64-v2 in non-local builds” · e4fee670a 2023-02 “desktop-ui: check for SSE4.2 support in non-local builds” · 10b747c30 2025-01 “nall: add instruction_set to query cpu features (#1751)” • Also seen in TigerBeetle (tigerbeetle-084): 8540d0ef8d 2023-04-26 "Bump baseline CPU features to x86_64_v3+aes on x86, and baseline+aes+neon on ARM" across install scripts, the Dockerfile and release targets, replacing `-Dcpu=baseline`. AEGIS needed this. • 1cd79f3935 2024-04-29 Added a `SigIllHandler` for POSIX and Windows that explains Illegal Instruction failures on older CPUs. • c97dd85deb 2024-07-21 A comptime assertion makes the hardware-AES requirement part of the build.
 
 ### ares-109 — Unity builds for whole-module optimization
 Lens: compiler-build · Source: ares
@@ -547,12 +547,12 @@ Watch out: —
 Seen in ares: The clang build switched from `-flto` to `-flto=thin`, with `--thinlto-cache-dir` or `-cache_path_lto` (`-lldltocache` under clang-cl), and lld became the default linker off macOS. The commit says incremental LTO links dropped "from tens of seconds to less than a second". libco's `co_swap_function` needed external linkage to work under ThinLTO. 65a3d38a2 2023-03 “build: enable clang ThinLTO” · 4b2b00a83 2023-03 “nall: use llvm's lld linker with clang”
 
 ### ares-111 — Keep frequently changing constants out of widely included headers
-Lens: compiler-build · Source: ares
+Lens: compiler-build · Source: ares · Also: H2O
 Principle: A value that changes every release, if it is defined in a header everything includes, forces a full rebuild each time it changes. Declare it `extern` in the header and define it in one source file, so only that file recompiles.
 Why it is faster: —
 Applies elsewhere: build stamps and git hashes in generated `.c` files, feature-flag tables loaded at runtime, version strings injected at link time.
 Watch out: —
-Seen in ares: `ares::Version`, `Name`, `SerializerSignature` and similar were `static const` in `ares/ares.hpp`. They are now `extern const`, defined in `ares/ares.cpp`. b7be6612b 2023-10 “ares: prevent rebuilding the entire project if only version constants change”
+Seen in ares: `ares::Version`, `Name`, `SerializerSignature` and similar were `static const` in `ares/ares.hpp`. They are now `extern const`, defined in `ares/ares.cpp`. b7be6612b 2023-10 “ares: prevent rebuilding the entire project if only version constants change” • Also seen in H2O (h2o-081): d39b40be9f 2022-05-09 `h2o/version.h` was removed from `include/h2o.h` and is now included only in lib/core/config.c and src/main.c.
 
 ### ares-112 — Don't emit duplicated output that the presenter can scale
 Lens: gpu-rendering · Source: ares
@@ -627,12 +627,12 @@ Watch out: —
 Seen in ares: 32X bus and I/O paths now call `internalStep(n)`. When the SH-2 recompiler is enabled this is `regs.CCR += clocks`; otherwise it calls `step(clocks)` as before. 048d0e331 2025-02 “md: add internalStep function for 32x recompiler”
 
 ### ares-138 — Overlap work and wait only when its result is consumed
-Lens: concurrency · Source: ares
+Lens: concurrency · Source: ares · Also: TigerBeetle
 Principle: Hand the expensive operation to a worker thread and keep going. Block on its completion only at the point where the result is needed. A pair of monotonic sequence counters (submitted and completed) makes "wait until done" a simple spin on one comparison.
 Why it is faster: —
 Applies elsewhere: futures resolved lazily; GPU fences checked at present time; async I/O with completion counters.
 Watch out: —
-Seen in ares: Textured PS1 draws used to call `renderer.synchronize()` right after queueing so their texture-cache cost could be measured. Now the GPU records `textureCyclesAtQueue` and calls `finishPendingRender()` only when `io.pcounter` reaches 0. `synchronize()` spins on `completedSequence != workSequence`, which replaced a sentinel command pushed through the queue. 5d093ad9e 2026-10 “ps1: run textured draws in parallel to the cpu”
+Seen in ares: Textured PS1 draws used to call `renderer.synchronize()` right after queueing so their texture-cache cost could be measured. Now the GPU records `textureCyclesAtQueue` and calls `finishPendingRender()` only when `io.pcounter` reaches 0. `synchronize()` spins on `completedSequence != workSequence`, which replaced a sentinel command pushed through the queue. 5d093ad9e 2026-10 “ps1: run textured draws in parallel to the cpu” • Also seen in TigerBeetle (tigerbeetle-102): ecb18d7e8b 2020-07-17 "Move notifications out of the critical path": the 202 ACK is sent right after the batch commits, not after the downstream POST. • 54e7cb156e 2023-09-06 "Start manifest log compaction on the first beat of each half bar. Don't block on manifest compaction until the last beat ... May as well batch them to maximize NVMe utilization." • 60b8677a1b 2026-03-10 "remove write & read stall from the end of beat": "there is no fundamental reason for us to stall on the completion of this IO at the end of the beat ... we can actually afford to let the write IO run up till the checkpoint". `ResourcePool` gains `iop_release_resume`.
 
 ### ares-139 — Prefetch the predicted next item on a background thread
 Lens: concurrency · Source: ares

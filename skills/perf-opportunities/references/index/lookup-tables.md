@@ -41,7 +41,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mesen2-001 | Replace range-check cascades and switches with a precomputed table | When a function maps a small key to a result through a chain of comparisons or a big switch, compute every answer once at startup and store it in an array.
 - mesen2-049 | Coarse presence table in front of an expensive lookup | When only a few keys in a large space have a handler, keep a small boolean array indexed by a coarse part of the key, such as the high bits.
 - mesen2-053 | Flatten multi-step decode into tables indexed by a combined key | If a value comes from a nested table lookup followed by scaling or sign extension, pack the inputs into a single small index and precompute the final answers.
-- mesen2-074 | Precompute reflection metadata once per type | Reflection lookups such as reading custom attributes off enum values are slow and allocate.
+- mesen2-074 | Precompute reflection metadata once per type | Reflection lookups such as reading custom attributes off enum values are slow and allocate. (also: Pebble)
 - mesen2-119 | Skip identity transforms when building lookup tables | When user settings are at their neutral values, the color-adjustment math is a no-op that can still introduce rounding errors.
 - mesen2-149 | Precompute a polyphase filter-coefficient table | Windowed-sinc interpolation is expensive to compute per sample.
 - mesen2-156 | Precompute per-region access costs into a small table | If a cost depends on a handful of address bits plus a mode, compute it for every combination once, and again only when a configuration register changes.
@@ -53,7 +53,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mgba-084 | Invalidate many cache entries at once with version counters | Don't walk every dependent entry to clear a flag.
 - mgba-138 | Truth-table bitmask instead of a switch | When a yes/no answer depends on a few bits of state, precompute the full truth table as one integer and test it with `table[key] & (1 << state)`.
 - mgba-150 | Compute derived state when inputs change, and put the slowest-changing loop outermost | Values derived from configuration should be computed when the configuration is written, not each time they're used.
-- mgba-157 | Divide by multiplying with a reciprocal, then shift | Integer division is slow on CPUs and very slow on GPUs.
+- mgba-157 | Divide by multiplying with a reciprocal, then shift | Integer division is slow on CPUs and very slow on GPUs. (also: jemalloc)
 - mgba-181 | Encode rarely-changing state as a bitmask; answer hot queries with mask & table[phase] | When a costly predicate depends on state that changes rarely, decode that state into a bitmask once per change.
 - mgba-183 | Advance bit-serial recurrences k bits at a time with a 2^k table | An LFSR, a CRC or a bitstream decoder stepped one bit at a time forms a long dependency chain.
 - mgba-219 | Dispatch through a dense table of fully specialized handlers | For a dense opcode space, index a precomputed array of handler functions with the opcode bits. (also: ares)

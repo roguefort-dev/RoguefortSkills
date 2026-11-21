@@ -7,7 +7,7 @@ Agent skills for practical optimization, codebase cleanup, and search performanc
 | [perf-aio](skills/perf-aio/SKILL.md) | Performance diagnosis, optimization patterns and graphics guidance |
 | [john-wick](skills/john-wick/SKILL.md) | Cleanup sweeps that find every instance of a code smell; first pass: implicit state machines |
 | [search-console-opportunities](skills/search-console-opportunities/SKILL.md) | Prioritize SEO actions using Google Search Console exports |
-| [perf-opportunities](skills/perf-opportunities/SKILL.md) | Full performance review of a codebase against 3,800+ distinct techniques mined from 21 performance-critical projects; writes an opportunities report |
+| [perf-opportunities](skills/perf-opportunities/SKILL.md) | Full performance review of a codebase against 5,300+ distinct techniques mined from 34 performance-critical projects; writes an opportunities report |
 
 ## Install Perf AIO
 

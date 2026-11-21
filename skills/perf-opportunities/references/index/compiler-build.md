@@ -9,10 +9,10 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - ares-025 | Tune the toolchain: optimization level, target CPU, PGO | Compiler flags and versions can be worth double-digit percentages.
 - ares-067 | Cache compiler output across rebuilds | Rebuilding unchanged translation units is pure waste.
 - ares-094 | Batch ticks with compile-time counts and unswitch loops | If an inner routine runs N times in a row with the same enable flags, pass N and the per-instance constants as template arguments.
-- ares-108 | Raise the ISA baseline and check it before startup | Targeting a newer, widely available instruction-set level lets the compiler use better instructions everywhere.
+- ares-108 | Raise the ISA baseline and check it before startup | Targeting a newer, widely available instruction-set level lets the compiler use better instructions everywhere. (also: TigerBeetle)
 - ares-109 | Unity builds for whole-module optimization | Compiling each module as a single translation unit, one file that includes all its sources, lets the compiler inline and optimize across file boundaries without depending on LTO.
 - ares-110 | ThinLTO with an incremental cache | Full LTO re-optimizes the whole program on every link.
-- ares-111 | Keep frequently changing constants out of widely included headers | A value that changes every release, if it is defined in a header everything includes, forces a full rebuild each time it changes.
+- ares-111 | Keep frequently changing constants out of widely included headers | A value that changes every release, if it is defined in a header everything includes, forces a full rebuild each time it changes. (also: H2O)
 - ares-134 | Resolve argument moves as a parallel copy | When a generated call passes values that are already in registers, the moves into ABI argument registers can overwrite each other.
 - dolphin-024 | Specialize generated code and leave out identity operations | When you generate source code from configuration, emitting the general formula and hoping the downstream compiler simplifies it is a missed opportunity.
 - dolphin-038 | Replace a virtual stream reader with an inline pointer bump | A virtual `Read8()`/`Read32()` interface costs an indirect call per field and blocks inlining.
@@ -24,7 +24,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-150 | Fuse common instruction pairs into one host operation | Look one instruction ahead for idioms the source ISA spells in two steps but the target does in one.
 - dolphin-156 | Track value properties so you can skip normalization | If analysis can prove a value is already in a canonical form (already rounded, top half equal to bottom half, high bit clear), the normalizing step is a no-op and can be dropped.
 - dolphin-159 | Let liveness drive register-cache spills and loads | A register allocator that knows which values are still needed can write a dead value back once, at its last use, rather than at every branch.
-- dolphin-163 | Copy globals into locals inside inner loops | A global or member that is read in a loop which also writes through pointers must be reloaded every iteration, because the compiler can't rule out aliasing. (also: Flycast)
+- dolphin-163 | Copy globals into locals inside inner loops | A global or member that is read in a loop which also writes through pointers must be reloaded every iteration, because the compiler can't rule out aliasing. (also: zstd, Flycast)
 - dolphin-164 | Force inlining, or turn runtime flags into template parameters | Small accessors and hot lookup helpers only pay off once inlined, and some compilers silently refuse.
 - dolphin-165 | Make always-constant parameters actual constants | If a function is only ever called with one value for some argument, remove the argument and use a local constant.
 - dolphin-244 | Match the container's exact element type when iterating by reference | A `std::map` stores `pair<const K, V>`. Binding `const pair<K, V>&` to that silently builds a converted temporary copy of every element. Use `auto&` or structured bindings so the reference binds directly.
@@ -36,7 +36,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - dolphin-330 | Spill choice by a cheap cost score with bounded lookahead | When a register must be freed, score each candidate: a dirty value costs a writeback, and a value needed soon costs a reload.
 - dolphin-331 | Backward liveness pass to drop dead registers and flags | Scan a block in reverse to learn which outputs are overwritten before they are read.
 - dolphin-339 | Template the decoder on its callback so handlers inline | A command-stream parser that calls virtual handlers pays an indirect call per command.
-- duckstation-028 | Force-inline tiny accessors on hot paths | Compilers sometimes decline to inline small helpers, especially across translation units or in less-optimised builds. (also: ares)
+- duckstation-028 | Force-inline tiny accessors on hot paths | Compilers sometimes decline to inline small helpers, especially across translation units or in less-optimised builds. (also: zstd, ares)
 - duckstation-029 | Compile diagnostics out of hot functions | Even untaken logging or assertion code makes a function bigger.
 - duckstation-030 | Choose build flags for throughput: LTO on, unneeded mitigations off | Link-time optimisation lets the compiler inline and specialise across files.
 - duckstation-031 | Specialise inner loops with template flags | Runtime flags tested inside a per-pixel or per-element loop add branches and block vectorisation.
@@ -49,7 +49,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-106 | Make hot-path assertions debug-only and force-inline only in release builds | An always-on assertion inside a per-instruction or per-sample function costs a compare, a branch and a call to a cold panic path, and it can stop the function from being inlined.
 - duckstation-147 | Turn a runtime selector into a template parameter | When a function branches on an enum argument throughout its body, instantiate it once per enum value.
 - duckstation-184 | Turn off unused language runtime features | RTTI and exception support add type-info tables, unwind data and code-size overhead, and can inhibit some optimizations.
-- duckstation-197 | Stop specializing on a flag when code size costs more than the branch | Each bool template parameter doubles the number of instantiations.
+- duckstation-197 | Stop specializing on a flag when code size costs more than the branch | Each bool template parameter doubles the number of instantiations. (also: TigerBeetle, zstd)
 - duckstation-225 | Use overflow-checking builtins instead of hand-written sign tricks | `__builtin_add_overflow` and `__builtin_sub_overflow` compile to the add plus a jump on the CPU's overflow flag.
 - duckstation-226 | Promise no aliasing with restrict | If the compiler can't rule out two pointers overlapping, it has to reload memory after every store and can't vectorize freely.
 - duckstation-270 | Evaluate log arguments only when the level is enabled | If a log call is a function, its arguments (formatting, `__func__` strings, temporaries) are built before the level check.
@@ -79,13 +79,13 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - flycast-215 | Specialise the parser per record type and continue through a function pointer | Use template parameters for the record layout so each vertex format compiles to straight-line code.
 - melonds-003 | Generate one specialised handler per operand variant | If an operation has a few orthogonal variants (addressing mode, shift kind, whether flags are set), produce a separate small function for each combination with macros or templates.
 - melonds-011 | Replace mode-flag parameters with dedicated entry points | A function that takes a flags argument and branches on it inside makes every caller pay for that branch, even though the call site already knows which flag it is passing.
-- melonds-014 | Lift per-batch decisions into template parameters | When a decision is fixed for a whole batch (a polygon, a scanline, a layer), make it a compile-time template or constant parameter.
+- melonds-014 | Lift per-batch decisions into template parameters | When a decision is fixed for a whole batch (a polygon, a scanline, a layer), make it a compile-time template or constant parameter. (also: simdjson, TigerBeetle, zstd)
 - melonds-035 | Move small hot containers into header templates | A tiny container whose methods live in a `.cpp` file costs a real call for every push and pop unless link-time optimisation is on.
 - melonds-036 | Default builds to an optimised configuration | If no build type is chosen, many build systems compile without optimisation, and users then run code that is several times slower than necessary.
 - melonds-037 | Compile out diagnostic instrumentation | Counters and checks added while debugging run on hot paths. (also: ares)
 - melonds-038 | Move cold cases out of the hot dispatcher | A dispatcher that handles a few hot fast paths alongside a large switch of rare cases gets big, hurts instruction-cache density, and is less likely to be inlined.
 - melonds-056 | Let the toolchain optimize across files, and debug with -Og | Link-time optimization lets the compiler inline and specialize across translation units.
-- melonds-076 | Specialize hot functions on a small compile-time parameter | If a function branches on a parameter with only a few values, such as which CPU, which mode or which pixel format, make it a template or generic parameter.
+- melonds-076 | Specialize hot functions on a small compile-time parameter | If a function branches on a parameter with only a few values, such as which CPU, which mode or which pixel format, make it a template or generic parameter. (also: jemalloc)
 - melonds-096 | Hoist runtime-invariant choices out of hot loops with templates | A function pointer chosen once at setup time but called in an inner loop costs an indirect call per iteration, and the compiler can't inline through it.
 - melonds-115 | Get release build flags right, and make builds faster to iterate | Overwriting release flags wholesale can silently drop important defines such as `-DNDEBUG`, leaving asserts in the shipped binary.
 - melonds-116 | Declare constant tables constexpr | A lookup table that is never written but isn't declared `const` goes into writable `.data`.
@@ -121,7 +121,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - mesen2-157 | Use static polymorphism (CRTP) for hot customization points | When a base algorithm needs per-variant hooks that are called millions of times a second, template the base on the derived class and call the hooks through a cast to it.
 - mesen2-158 | Pick a hardware-configuration-specialized step function at load | If a configuration is fixed for a whole session, such as which add-on hardware is present, compile the per-tick function once for each configuration and choose one through a member function pointer.
 - mgba-031 | Default to optimized builds, feed profiles back, and benchmark headless | Make Release the default build, use profile-guided optimization so the compiler lays out code from real traces, add likely/unlikely hints, and keep a reproducible headless benchmark that can turn subsystems…
-- mgba-049 | Branch hints, and verify they actually expand | `__builtin_expect` lets the compiler lay out the hot path as fall-through and move cold code out of line.
+- mgba-049 | Branch hints, and verify they actually expand | `__builtin_expect` lets the compiler lay out the hot path as fall-through and move cold code out of line. (also: zstd)
 - mgba-050 | Link-time optimisation across module boundaries | LTO lets the compiler inline and specialise across translation units, which helps most when hot calls cross files.
 - mgba-051 | Fast-math on weak FPUs; clean PGO instrumentation | Where bit-exact IEEE results don't matter (audio, graphics), `-Ofast`/`-ffast-math` buys speed on slow FPUs.
 - mgba-069 | Compile out unused subsystems for embedded and plugin builds | Make features optional at compile time, so constrained builds carry no code and no startup cost for things they don't use.
@@ -152,14 +152,14 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - pcsx2-233 | Allow the compiler to fuse multiply-add | Some compilers keep `a*b+c` as two rounded operations by default.
 - pcsx2-234 | Build constant tables at compile time | Tables filled by an `InitVectors()` call at startup cost init time, depend on init order, and cannot live in read-only memory.
 - pcsx2-287 | Run a backward liveness pass and fold known constants before emitting code | Before generating code for a block, walk it backwards and record, per instruction, which registers are used later and where each is last used.
-- ppsspp-008 | Compile a format descriptor into a step-function list, and cache it | Interpreting a format description per element means re-testing the same flags millions of times.
+- ppsspp-008 | Compile a format descriptor into a step-function list, and cache it | Interpreting a format description per element means re-testing the same flags millions of times. (also: memcached)
 - ppsspp-035 | Normalize cache keys so irrelevant bits don't create variants | If a cache key includes fields that have no effect in the current mode, you get duplicate entries and repeated expensive builds.
 - ppsspp-046 | Make sure the optimizer and fast paths are actually on | Build settings fail silently: an `-O2` that never reaches the compiler, or a library's fast path gated on GCC-only macros that MSVC never defines.
 - ppsspp-065 | Write code the compiler can keep in registers | Writing through a member pointer or into struct fields inside a loop makes the compiler assume aliasing and reload or store every iteration.
 - ppsspp-098 | Specialize generated code for common constant values | When generating code (shaders, queries, JIT output) from runtime parameters, detect common special values and emit a cheaper variant for them.
-- ppsspp-101 | Turn divisions into multiplies and constant divisors | Division is many times slower than multiplication.
+- ppsspp-101 | Turn divisions into multiplies and constant divisors | Division is many times slower than multiplication. (also: libuv)
 - ppsspp-102 | Template on loop-invariant flags | If a hot loop tests the same configuration flags on every iteration, make them template (compile-time) parameters and dispatch once to the right instantiation.
-- ppsspp-145 | Move tiny hot methods into the header so they inline | Small functions defined in a .cpp file can't be inlined across translation units without LTO, so every call pays call and return overhead and blocks optimizations around it. (also: ares)
+- ppsspp-145 | Move tiny hot methods into the header so they inline | Small functions defined in a .cpp file can't be inlined across translation units without LTO, so every call pays call and return overhead and blocks optimizations around it. (also: simdjson, ares)
 - ppsspp-157 | Hoist invariant products and use the smallest matrix that does the job | In nested loops, compute a product that only depends on the outer index once per outer iteration.
 - ppsspp-164 | Remove hidden copies: auto by value, pop-by-value, read-modify-write | Writing `auto x = getVector()` copies the whole container.
 - ppsspp-191 | Make hot accessors inlinable | A getter defined in a `.cpp` file costs a real call at every use unless link-time optimization is on.
@@ -211,5 +211,5 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - tokio-064 | Lend a borrowed handle during a call; refcount only when it escapes | While a task is being polled, give it a non-owning waker that points at the task header and whose drop does nothing.
 - tokio-065 | Make every wake carry new information | Consume a stored waker when firing it, don't wake a task you are about to return Ready to, don't poll a handle that hasn't finished, and release stored wakers as soon as nobody can be interested.
 - tokio-066 | One static vtable per concrete type, with thin handles to a single block | Type-erase a heterogeneous object (task, callback, request) through a header holding one `&'static` table of functions generated per concrete type.
-- tokio-067 | Prefer concrete types and enum dispatch over boxed trait objects | Return a named concrete type instead of a boxed interface.
+- tokio-067 | Prefer concrete types and enum dispatch over boxed trait objects | Return a named concrete type instead of a boxed interface. (also: libuv)
 - tokio-068 | Allocation-free combinators: state on the stack, a bitmask for bookkeeping | Multiplexing combinators (select, join, race) can keep their child futures inline and track per-branch state in a small bitmask, paying for fairness (randomness or rotation) only when the caller wants it.

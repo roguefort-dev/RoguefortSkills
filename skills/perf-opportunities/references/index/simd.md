@@ -1,4 +1,4 @@
-# Lens: simd (119 techniques)
+# Lens: simd (131 techniques)
 
 Vectorisation, intrinsics, data-parallel kernels, runtime CPU dispatch.
 
@@ -52,7 +52,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - duckstation-304 | Index with the natural element width instead of gathering words and extracting fields | If each index is exactly one byte, read the bytes directly and use them as table indices.
 - duckstation-305 | Hold a 16-entry table in registers and look it up with a byte shuffle | A 16-entry table of 16-bit values fits in two registers once split into low and high bytes.
 - duckstation-306 | Replace a gather with one contiguous load when the access pattern is sequential | Gathers cost roughly one load per lane. If you can prove the addresses for a vector are consecutive, for example when coordinates step by one and no wrap or remap applies, issue a single vector load. Check…
-- duckstation-340 | A thin, header-only SIMD wrapper with one backend per ISA and feature macros | Write vector kernels once against a small value-type API (`add32`, `madd_s16`, `shuffle8`), and pick the SSE, NEON or scalar backend at compile time.
+- duckstation-340 | A thin, header-only SIMD wrapper with one backend per ISA and feature macros | Write vector kernels once against a small value-type API (`add32`, `madd_s16`, `shuffle8`), and pick the SSE, NEON or scalar backend at compile time. (also: simdjson)
 - flycast-027 | Rasterize in blocks with trivial accept and reject | Walk a triangle's bounding box in small tiles, such as 4×4 pixels, using the incrementally updated edge functions.
 - flycast-028 | Shade four pixels per instruction with lane masks | Evaluate interpolants as plane equations for four pixels at once (`x*ddx + y*ddy + c` in SSE registers).
 - flycast-050 | Map 4-wide math onto SIMD lanes | A 4-element dot product or a 4×4 matrix-vector multiply written as scalar code takes 16 multiplies and a chain of dependent adds.
@@ -62,7 +62,7 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - melonds-170 | SWAR colour math: blend packed channels in one integer | If channels sit in separate bytes of a 32-bit word with spare headroom bits, one integer multiply-add can process several channels at once (SIMD within a register).
 - mesen2-052 | Gather bits from two lanes with one mask | If the bits you need sit at fixed distances inside a wider word, shift once and mask with a pattern that selects all of them together, then fold the upper lane down with one more shift.
 - mgba-021 | SWAR: one multiply blends several packed fields | Spread small fields across a wide integer with guard bits between them, so one multiply-add processes every field at once.
-- mgba-052 | De-interleaving SIMD loads for pixel-format narrowing | Structured load and store instructions can split interleaved data into lanes.
+- mgba-052 | De-interleaving SIMD loads for pixel-format narrowing | Structured load and store instructions can split interleaved data into lanes. (also: zstd)
 - mgba-066 | Use a tuned library for standard pixel operations | For scaling, compositing and colour conversion, a library with SIMD back ends usually beats hand-rolled scalar loops.
 - mgba-113 | Prefer loops the compiler can vectorize over hand-written SIMD assembly | A plain, unrolled, alias-free loop gets auto-vectorized on every target, can be inlined, and needs no maintenance.
 - mgba-149 | Use SWAR permutes to merge mirrored code paths | Data packed into sub-word fields can be reversed or permuted with a few mask-and-shift operations (a byte swap, then a nibble swap).
@@ -117,9 +117,21 @@ Format: `id | title | principle (first sentence)`. The id prefix names the cards
 - redis-134 | Feed fast kernels chunks big enough to use them | A vector or hardware-accelerated kernel only beats scalar code above a minimum input size.
 - rocksdb-130 | Test many candidates per instruction instead of branching per candidate | When a query checks several independent positions (filter probe bits, hash-table slots), compute and test them all at once with vector instructions and combine the results, instead of a loop that exits early…
 - rocksdb-131 | Work a machine word at a time (SWAR, popcount, parity) | Treat a 64-bit integer as eight bytes or 64 flags: compare, test and count many elements per ordinary integer instruction, with `ctz`, `popcount` and parity finishing the job.
+- simdjson-067 | Turn each block of bytes into 64-bit bitmasks with compare plus movemask | Compare a whole register of bytes against a splatted character and collapse the result to one bit per byte, so all later logic operates on 64-bit integers with a few ALU ops per block instead of a loop per…
+- simdjson-068 | Fold validation into the bulk vector pass, with a whole-block ASCII fast path | Run validation on bytes already loaded in vector registers during the main scan, and test a whole block for "all ASCII" once so the full check runs only on blocks that need it; move per-token checks from…
+- simdjson-069 | Validate a multi-byte grammar with three nibble-table lookups ANDed together | Encode each error class as a bit, map three nibbles (high and low nibble of the previous byte, high nibble of the current byte) through 16-entry tables to bitsets of the errors they could take part in, and…
+- simdjson-070 | Compact (left-pack) selected bytes with shuffle masks or a hardware compress instruction | To delete arbitrary elements from a vector without branches, compute a keep-mask, pack the kept bytes to the front with a precomputed shuffle (or a native compress), store the full vector and advance the…
+- simdjson-071 | Size each loop step to the register file: wide enough to fill the machine, narrow enough not to spill | Process as many independent blocks per iteration as the ISA's register count supports, and advance by the native vector width; tune the step per ISA rather than once for all.
+- simdjson-073 | Extract masks and "any set?" answers cheaply on ISAs without movemask | On ISAs lacking a byte movemask, amortize mask building over several vectors (bit weights plus pairwise adds, or deinterleaving loads), use narrowing shifts for position queries, and pick the cheapest… (also: zstd)
+- simdjson-074 | Keep SIMD wrapper types truly zero-cost: check their generated code | Abstraction layers over intrinsics should return natural types, match the instruction's operand form, avoid returning new multi-register aggregates, and be inspected at the assembly level.
 - snes9x-014 | Shape per-sample DSP code so the compiler can vectorize it | Use the narrowest float type that meets quality needs, fold constant parameters out of the formula, and hoist loop-invariant loads.
 - snes9x-033 | Saturating arithmetic on packed fields within one integer (SWAR) | Several small fields packed into one machine word can be added or subtracted together if each field has a guard bit above it.
 - snes9x-090 | Use a vectorised library for pixel-format conversion | Colour-space conversions such as RGB565 to planar YUV are simple per-pixel arithmetic over large buffers.
 - snes9x-091 | Blend packed colour channels with one multiply (SWAR) | In a packed pixel format, mask the channels apart so that each has headroom bits above it.
 - snes9x-130 | Saturating per-channel arithmetic in one integer (SWAR) | Pack colour channels with a spare bit above each, add or subtract them all in one integer operation, then turn each channel's overflow bit into a saturation mask with a shift and multiply.
 - snes9x-159 | Blend packed colour channels with masked multiplies | In 565 or 555 colour, the non-adjacent channels (R and B) can be weighted together in one multiply after masking out the middle channel, since the gap absorbs the carry.
+- zstd-096 | Filter a bucket of candidates with one vector compare of 1-byte fingerprints | Store each hash bucket as a fixed row of candidates plus a parallel row of 1-byte secondary hashes ("tags").
+- zstd-098 | Vectorize array-of-struct narrowing with a vector overflow check and a scalar fallback | Converting wide structs (say 4×u32) into packed narrow ones (u32+u16+u16) is a pure data-parallel transform.
+- zstd-100 | Count histograms in narrow vector lanes, widen periodically, and process the dense value range first | Accumulate counts in the narrowest lanes that cannot overflow for a bounded number of iterations, then widen into larger accumulators, and size the chunks so those cannot overflow either.
+- zstd-102 | Block auto-vectorization where it makes the loop slower | If a loop usually runs only once or twice, or is bound by a serial dependency, the compiler's vectorized version (alignment and overlap prologues, lane shuffles) can cost more than the scalar loop.
+- zstd-103 | Fixed-size copies: explicit vector moves where memcpy lowers badly, scalar moves where a register is wide enough | For 8- and 16-byte copies in hot loops, use exactly one register-wide move.

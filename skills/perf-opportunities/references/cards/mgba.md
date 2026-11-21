@@ -387,12 +387,12 @@ Watch out: —
 Seen in mGBA: `GBAMemoryStall` now tests `activeRegion < REGION_CART0` before `!prefetch`. The `loads + previousLoads < 8` test left the while-condition and became a post-loop clamp. 0772fc496 2015-06 “GBA Memory: Optimize stall code”
 
 ### mgba-049 — Branch hints, and verify they actually expand
-Lens: compiler-build · Source: mGBA
+Lens: compiler-build · Source: mGBA · Also: zstd
 Principle: `__builtin_expect` lets the compiler lay out the hot path as fall-through and move cold code out of line. A portability-guard typo can silently turn the hint into a no-op on every compiler.
 Why it is faster: —
 Applies elsewhere: `[[unlikely]]` on C++20 error paths; `if (__builtin_expect(err, 0))` in networking loops.
 Watch out: —
-Seen in mGBA: The guard read `#ifdef _MSC_VER` and should have been `#ifndef`. Until the fix, GCC and Clang builds got the no-op versions of `LIKELY`/`UNLIKELY`. c0909c871 2015-06 “All: Fix typo, disabling __builtin_expect on MSVS”
+Seen in mGBA: The guard read `#ifdef _MSC_VER` and should have been `#ifndef`. Until the fix, GCC and Clang builds got the no-op versions of `LIKELY`/`UNLIKELY`. c0909c871 2015-06 “All: Fix typo, disabling __builtin_expect on MSVS” • Also seen in zstd (zstd-094): 0338635e93 2015-12-01 A `zstd-pgo` make target: `-fprofile-generate`, train with `./zstd -b`, then `-fprofile-use`. • 718f00ff6f 2019-11-25 Introduces `LIKELY`/`UNLIKELY`, with the rule that a hint stays only if removing it changes speed on gcc and clang. They are used on the 64-bit reload condition, the end of the loop (`UNLIKELY(!--nbSeq)`) and the error path. 6004c1117f uses `LIKELY` on the in-bounds read in `FSE_readNCount`. • b558190ac7 2023-03-28 Removes clang-only `LIKELY` hints in `ZSTD_decodeSequence` after measuring the `ofBits>1` branch at about 75% taken, one of several clang PGO tweaks.
 
 ### mgba-050 — Link-time optimisation across module boundaries
 Lens: compiler-build · Source: mGBA
@@ -411,12 +411,12 @@ Watch out: —
 Seen in mGBA: The 3DS toolchain moved to `-ffast-math` and then `-Ofast`. `PGO_PRE_FLAGS` dropped `-pg`, which had distorted and slowed the stage-1 profile. 1851e0da4 2015-09 “3DS: Turn on -ffast-math” · 4db6a13ea 2015-09 “3DS: Just use -Ofast” · 3ce129fbb 2015-12 “All: Remove -pg from PGO build”
 
 ### mgba-052 — De-interleaving SIMD loads for pixel-format narrowing
-Lens: simd · Source: mGBA
+Lens: simd · Source: mGBA · Also: zstd
 Principle: Structured load and store instructions can split interleaved data into lanes. Narrowing or swizzling pixels then happens for free, many elements per instruction, with a scalar loop handling the remainder.
 Why it is faster: —
 Applies elsewhere: RGBA8888 to RGB565 conversion for an embedded LCD with NEON; `pshufb`/`packus` on x86.
 Watch out: —
-Seen in mGBA: `_to16Bit` in `arm-algo.S` was `ldmia` of 8 words followed by 8 `strh`. It became two `vld4.16` and two `vst2.16`, 16 pixels per iteration. The ASM language was also enabled for all ARM builds. This routine is gone in HEAD. 84a14b6c0 2015-03 “Util: NEONize 16-bit color packing” · 17d61564c 2015-03 “All: All ARM targets should enable ASM”
+Seen in mGBA: `_to16Bit` in `arm-algo.S` was `ldmia` of 8 words followed by 8 `strh`. It became two `vld4.16` and two `vst2.16`, 16 pixels per iteration. The ASM language was also enabled for all ARM builds. This routine is gone in HEAD. 84a14b6c0 2015-03 “Util: NEONize 16-bit color packing” · 17d61564c 2015-03 “All: All ARM targets should enable ASM” • Also seen in zstd (zstd-099): d95123f2e6 2025-05-16 RVV convertSequences: `__riscv_vlseg4e32_v_u32m2x4` loads the offset, literal-length and match-length vectors, `vncvt` narrows them, and `vsseg2e32` stores `{offBase, lit|ml<<16}`, with `vsetvl` each iteration. Merged with the RVV block summary in e23d0a9616. 87cc127705 enables RVV only on compilers known to generate good code for it (GCC 14 and later, Clang 19 and later).
 
 ### mgba-053 — Offload layout transforms, copies and fills to hardware engines; fence lazily
 Lens: gpu-rendering · Source: mGBA
@@ -459,12 +459,12 @@ Watch out: —
 Seen in mGBA: The frameskip counter moved from the mutex-guarded `GBASync` into `GBAVideo` (`frameskipCounter`), which gates `drawScanline` and `finishFrame`. Qt now posts `nullptr` for skipped frames so it doesn't re-upload. This is the same in HEAD `video.c`. f128f844a 2015-09 “GBA: Revamp frameskip” · d4ab0564e 2015-04 “Qt: Post empty frames if frameskipping” • Also seen in Flycast (flycast-009): `ta_parse_vdrc` (`pvr/ta_vtx.cpp`) went from all-or-nothing `if (!settings.pvr.ta_skip)` to `if (0 == (ta_parse_cnt % (ta_skip+1)))`, so frames are skipped in a fixed ratio. On Pandora, `rend_thread` alternated a `frameskip` flag and skipped `Render()`/`Present()` for non-RTT frames. Android exposed frame-skip up/down buttons wired to `JNIdc.frameskip`. 05571cf7e 2014-01 “Frameskip, unstable opts” · c74f91d42 2013-12 “PANDORA: Force 1 frameskip (seems useless)” · 94879b0ca 2014-02 “Repurpose fast forward as actual frame skipping options”
 
 ### mgba-058 — Release the shared lock before slow work
-Lens: concurrency · Source: mGBA · Also: ares
+Lens: concurrency · Source: mGBA · Also: NATS, ares
 Principle: Hold a lock only while copying shared data out. Unlock before rendering, I/O or a vsync-blocked swap so the other thread can keep going.
 Why it is faster: —
 Applies elsewhere: snapshot a config map under a lock, then serialise and send it after unlocking.
 Watch out: —
-Seen in mGBA: `GBASyncWaitFrameEnd()` now runs right after the frame is copied (`postFrame`/dequeue), before `drawFrame` and the swap, in Qt and both SDL GL runloops. This fixed fast-forward stalls. 34d0dff2d 2015-11 “OpenGL: Fix fast-forward on some OpenGL drivers where it may block early” • Also seen in ares (ares-102): The PS1 `GPU::Blitter::refresh()`, which can run on the screen thread, held `vram.mutex` while converting every pixel. `queue()` now copies only the display rectangle row by row into the blitter's own 1 MiB `vram` under the lock. `refresh()` reads that copy without locking. 0af2690e5 2024-04 “ps1: blitter now uses a copy of the display area”
+Seen in mGBA: `GBASyncWaitFrameEnd()` now runs right after the frame is copied (`postFrame`/dequeue), before `drawFrame` and the swap, in Qt and both SDL GL runloops. This fixed fast-forward stalls. 34d0dff2d 2015-11 “OpenGL: Fix fast-forward on some OpenGL drivers where it may block early” • Also seen in NATS (nats-097): 0a0f322231 2015-08-05 `/connz` preallocates sort pairs under the server lock, unlocks, then sorts. ecec51a771 2016-02-08 stores only `Pair{Key: client, Val: sortField}`. e5f0dabe08 2016-02-08 allocates the output once at the page size. • d28ae249ed 2020-03-06 Trace-level reload counts clients, `make([]*client, 0, n)`, appends under the server locks, then takes each `c.mu` after releasing them. 6b34d4e700 2020-05-19 and 48b2335cbf 2020-07-22 collect consumers, unlock, then stop them. • 786298469c 2022-12-14 Consumer info is built under one lock, and cluster info and the reply are done after unlocking. • e0cbe503ed 2023-03-07, 4b8229ee42 2023-04-02, c16915bff4 2023-04-06 Health checks and statsz stop holding server or JetStream locks across traversal. • 382da48180 2023-09-25 `subjectIsSubsetMatch` is "heavy", so keys are collected under `a.mu` and matched afterwards. • c05db6c0f8 2025-05-30 Clones the consumer list and releases `clsMu` before purging. 14c0615cf2 2025-06-01 reads the stream name once instead of calling the lock-taking accessor in the 429 path. • 3d89a0d9b0 2026-08-31 `Connz` copies the client list and server ID under `s.mu.RLock`, then releases it before taking each client's lock. • Also seen in ares (ares-102): The PS1 `GPU::Blitter::refresh()`, which can run on the screen thread, held `vram.mutex` while converting every pixel. `queue()` now copies only the display rectangle row by row into the blitter's own 1 MiB `vram` under the lock. `refresh()` reads that copy without locking. 0af2690e5 2024-04 “ps1: blitter now uses a copy of the display area”
 
 ### mgba-059 — Bounded buffer pool with a free list; overwrite the oldest when full
 Lens: allocation · Source: mGBA
@@ -555,12 +555,12 @@ Watch out: —
 Seen in mGBA: `MINIMAL_CORE=2` strips config files, directories and override loading from the libretro core. Libretro now hands `outputBuffer` to the frontend once per `retro_run` instead of through a `postVideoFrame` callback. 29556f45a 2016-01 “GBA: Add "super-minimal" core configuration, useful for cores-as-plugins, e.g. for libretro” · d07b4a4a7 2015-09 “Libretro: Stop using videoFrame callbacks”
 
 ### mgba-070 — Cache "this will never succeed" and stop retrying
-Lens: laziness · Source: mGBA
+Lens: laziness · Source: mGBA · Also: libuv, NATS
 Principle: Once a poll condition is found to be permanently false, record that fact so the hot path skips the check, instead of redoing expensive rescheduling each time.
 Why it is faster: —
 Applies elsewhere: remembering a 404 for an optional resource rather than re-requesting it on every render.
 Watch out: —
-Seen in mGBA: `GBAAudioSampleFIFO` reschedules a DMA only if its timing is `DMA_TIMING_CUSTOM`; otherwise it sets `dmaSource = 0`, so later samples skip the check. 4a36c3766 2015-04 “GBA Audio: FIFOs should not poll DMAs that are not scheduled for audio”
+Seen in mGBA: `GBAAudioSampleFIFO` reschedules a DMA only if its timing is `DMA_TIMING_CUSTOM`; otherwise it sets `dmaSource = 0`, so later samples skip the check. 4a36c3766 2015-04 “GBA Audio: FIFOs should not poll DMAs that are not scheduled for audio” • Also seen in libuv (libuv-039): 49d4e1884b 2012-03-19 `no_clock_boottime` flag. • f6a02fbe76 2012-06-29 Stop calling `accept4()` after ENOSYS: repeated unsupported calls had "a small but measurable performance impact". • d90102e649 2012-08-21 Same for `pipe2` and `socketpair(SOCK_CLOEXEC)`: "Speeds up pipe and socketpair creation on older kernels". • b04fc33ef7 2013-02-25 `no_eventfd2`, `no_eventfd` chain down to a pipe. • e9f75fb146 2013-11-15 `no_msg_cmsg_cloexec` for `recvmsg(MSG_CMSG_CLOEXEC)`. • 6abe1e4b95 2014-01-30 `no_cloexec_support` for `open(O_CLOEXEC)`; refactored into `uv__fs_open` by `202195c2`. • 13dd3502a7 2014-02-09 `static int no_preadv` fallback to a `pread` loop. • 861de3d71d 2014-09-15 `static int no_epoll_wait` to route to `epoll_pwait` (with `ef7b783d`). • 3646624e5e 2018-08-07 `no_utimesat`. • 77c30f24f6 2018-11-24 macOS clone support checked at runtime once and cached in `static int can_clone`. • 19d8eb0c92 2019-02-09 `static int no_statx`, set on EINVAL/EPERM/ENOSYS (seccomp-blocked syscalls included). • 087c461ee9 2019-06-20 `no_preadv` fallback now fills all buffers with sequential `pread`. • ca10e36149 2019-06-26 `copy_file_range_support` cleared on ENOSYS. • 1f63e287b6 2019-09-06 End of the cycle: once the minimum platform guarantees `O_CLOEXEC`, the probe and its branch are deleted (`067473ed` does the same for `accept4`). • c70dd705bc 2020-06-16 `uv__load_relaxed`/`uv__store_relaxed` applied to `no_preadv`, `no_statx`, `no_cloexec_support`, `no_msg_cmsg_cloexec` and others, making the caches TSan-clean. • 663588e68e 2020-12-14 ENOTSUP from `copy_file_range` means "could work on another filesystem" and no longer clears the global flag. • 9864053c9c 2021-05-13 `no_copy_file_range_support` uses relaxed load/store. • d2c31f429b 2023-04-18 `uv__use_io_uring` caches a ternary `_Atomic int` (unknown/yes/no). • 962b8e626c 2023-05-23 `uv__kernel_version()` caches the parsed version in `static _Atomic unsigned cached_version`; later opcode gating checks it directly. • c8fad2ac09 2023-06-23 `no_pwritev` became `_Atomic`. • 507f3046d1 2024-02-14 The lazily created io_uring ring records failure as `ringfd = -1` so creation is never retried. • Also seen in NATS (nats-031): 5ec0f291a6 2021-06-11 Follower adopts the leader's term when the index matches, which "prevents constant spinning" in catch-up. • a0a718321f 2024-07-29 Tombstones counted in raw bytes to "avoid potential excessive compact attempts". • 30cab5807a 2024-08-26 `mb.noCompact` set when compaction leaves bytes unchanged, cleared on removal; fixed "disk spikes and memory pops". • 5c9ccdf93f 2025-01-09 `cbytes` recorded after compaction; `shouldCompact` requires `bytes*2 < cbytes`. • 090fd6494d 2025-01-21 Redelivery of a deleted message removes it from pending instead of retrying ("Consumer slowdown when redelivering deleted message"); f0b318542a 2025-04-03 fixed a tight loop in `nextWaiting`.
 
 ### mgba-071 — Raise performance states only during heavy work
 Lens: platform · Source: mGBA
@@ -795,12 +795,12 @@ Watch out: —
 Seen in mGBA: 3DS: each batch flushed the whole vertex buffer with `GSPGPU_FlushDataCache`. It now flushes only `ctrVertexBuffer[ctrVertStart..+ctrNumVerts]`, and `C3D_TexBind` moved to texture activation. Wii: textures and the output buffer shrank from 256×256 to 256×160 (and 512×512 to 512×320), so `DCFlushRange` touches less memory. f25a7f777 2016-07 “3DS: Improve menu performance”; e159029e4 2016-09 “Wii: Reduce texture sizes”
 
 ### mgba-100 — Grow buffers geometrically and track capacity separately from length
-Lens: allocation · Source: mGBA
+Lens: allocation · Source: mGBA · Also: libuv
 Principle: Resizing to exactly the needed size on every append copies the data each time, which is O(n²). Doubling capacity makes appends amortised O(1).
 Why it is faster: —
 Applies elsewhere: `std::vector`, Go slices, and JS byte builders that double a `Uint8Array`.
 Watch out: —
-Seen in mGBA: `_vfmExpand` used to allocate exactly `newSize` on each savestate write. It now allocates `toPow2(newSize)`, tracked in `bufferSize`, and reallocates only when that grows. An off-by-one (`>=` instead of `>`) that forced needless resizes was fixed separately. fbb02475d 2017-04 “VFS: Optimize expanding in-memory files”; 323d425c8 2016-10 “VFS: Fix resizing memory chunks when not needed”
+Seen in mGBA: `_vfmExpand` used to allocate exactly `newSize` on each savestate write. It now allocates `toPow2(newSize)`, tracked in `bufferSize`, and reallocates only when that grows. An off-by-one (`>=` instead of `>`) that forced needless resizes was fixed separately. fbb02475d 2017-04 “VFS: Optimize expanding in-memory files”; 323d425c8 2016-10 “VFS: Fix resizing memory chunks when not needed” • Also seen in libuv (libuv-034): 0729ce8b39 2015-01-05 Windows `fs__scandir` replaced `dent_size += uv__fs_dirent_slide` (0x20) with `dirents_size == 0 ? 32 : dirents_size << 1`.
 
 ### mgba-101 — Give buffers advance-without-copy operations for zero-copy use
 Lens: allocation · Source: mGBA
@@ -1123,12 +1123,12 @@ Watch out: —
 Seen in mGBA: In the `DEFINE_ALU_INSTRUCTION_EX_ARM` macro, `SHIFTER()`, which can be an out-of-line call, now runs before `rd`/`rn`/`n` are decoded, so those values no longer need to survive the call. e9b519036 2020-11 “ARM: Move shifter call to avoid stack usage”
 
 ### mgba-141 — Keep internal state in the host's native byte order
-Lens: memory-layout · Source: mGBA
+Lens: memory-layout · Source: mGBA · Also: Aeron
 Principle: Pay for format conversion only at I/O boundaries. Inside the program, store data in whatever layout the machine reads directly.
 Why it is faster: —
 Applies elsewhere: parse network packets into native-endian structs once, and byte-swap only when you serialize.
 Watch out: —
-Seen in mGBA: SM83 register pairs were stored little-endian, so every access on big-endian hosts (Wii/PPC) needed a `LOAD_16LE` swap. A union whose byte order depends on host endianness made `return cpu->hl;` a plain load. 89f9a0b8b 2020-07 “SM83: Simplify register pair access on big endian”
+Seen in mGBA: SM83 register pairs were stored little-endian, so every access on big-endian hosts (Wii/PPC) needed a `LOAD_16LE` swap. A union whose byte order depends on host endianness made `return cpu->hl;` a plain load. 89f9a0b8b 2020-07 “SM83: Simplify register pair access on big endian” • Also seen in Aeron (aeron-046): 1e48650592 2014-03-12 First `AtomicBuffer`: `if (NATIVE_BYTE_ORDER != byteOrder) Long.reverseBytes(...)`, so the little-endian path does no swap. • 7625feb172 2014-10-04 Centralised `isPaddingFrame` and compared the type against 0, so no endianness handling is needed (29bd86da5e 2014-10-04). • 7ca7a03886 2015-11-14 Header writes branch on a static-final `nativeOrder()` that the JIT folds away. 3882380df3 2017-12-21 later split big- and little-endian header writers into separate classes chosen once.
 
 ### mgba-142 — Use bit intrinsics instead of bit loops
 Lens: platform · Source: mGBA
@@ -1251,12 +1251,12 @@ Watch out: —
 Seen in mGBA: VRAM was an RGBA4 `sampler2D`, and the shaders rebuilt nibbles with `int(x*15.9)`. It is now an `isampler2D` decoded with `(halfrow >> 4*(x&3)) & 15`. b5ca2b89e 2020-09 “Convert OpenGL VRAM texture to integer”
 
 ### mgba-157 — Divide by multiplying with a reciprocal, then shift
-Lens: lookup-tables · Source: mGBA
+Lens: lookup-tables · Source: mGBA · Also: jemalloc
 Principle: Integer division is slow on CPUs and very slow on GPUs. When divisors come from a small known set, precompute fixed-point reciprocals and compute `(x * recip[n]) >> k`.
 Why it is faster: —
 Applies elsewhere: box-filter downscalers, hash-bucket mapping (Lemire's fastrange), dividing by a runtime constant in a hot loop (libdivide).
 Watch out: —
-Seen in mGBA: GLSL mosaic used `x - x % n`. It now uses `((x * mosaicTable[n]) >> 12) * n`, with a 17-entry table of round(4096/n). 41a40acef 2020-11 “Avoid integer division using reciprocal tricks”
+Seen in mGBA: GLSL mosaic used `x - x % n`. It now uses `((x * mosaicTable[n]) >> 12) * n`, with a 17-entry table of round(4096/n). 41a40acef 2020-11 “Avoid integer division using reciprocal tricks” • Also seen in jemalloc (jemalloc-077): 289053c95b 2009-06-22 `arena_run_reg_dalloc()`: "Using actual division here can reduce allocator throughput by over 20%!" It uses a log2 table for powers of two and reciprocal tables with `SIZE_INV_SHIFT 21`. 47e57f9bda 2011-03-22 caps regions per run so the product cannot overflow. • e3d13060c8 2012-10-30 `arena_chunk_dirty_comp()` "multiplies away the denominator prior to comparison, in order to avoid division". • bacb6afc6c 2016-12-21 Replaces the reciprocal table with a generated `switch (binind)` where each case divides by a literal, so the compiler strength-reduces it (enabled by compile-time bin info, 627372b459 2016-04-07). • 21f7c13d0b 2017-12-19 `div_init`/`div_compute`: `n / d == (n * ceil(2^32/d)) >> 32` for exact multiples, with a proof in the comments. d41b19f9c7 2017-12-20 uses a per-bin `div_info_t` instead of the giant switch. • 229994a204 2021-01-29 Keeps the `div_info` in registers across a batch dealloc loop.
 
 ### mgba-158 — Replace a constant-output pass with a clear
 Lens: gpu-rendering · Source: mGBA
@@ -1315,12 +1315,12 @@ Watch out: —
 Seen in mGBA: `mVideoLoggerRendererFlush` always waited for the render thread. A `waitOnFlush` flag now makes the wait conditional, and Qt turns it off. Reading pixels became a single wait instead of flush, post, flush. fc3e47a4b 2020-11 · d3019c306 2020-12
 
 ### mgba-165 — Coalesce retries onto one persistent timer
-Lens: allocation · Source: mGBA
+Lens: allocation · Source: mGBA · Also: NATS
 Principle: Repeated "try again soon" requests shouldn't each allocate a timer. Keep one, and start it only if it isn't already active. That avoids allocation and collapses duplicate wakeups (a debounce).
 Why it is faster: —
 Applies elsewhere: debounce resize or input handlers with a single reusable timeout handle.
 Watch out: —
-Seen in mGBA: Each missed frame did `QTimer::singleShot(1, …)`. Now a single member `m_drawTimer` is started only `if (!isActive())`. d202cddd1 2021-07 “Qt: Reuse timer when rescheduling missing frames”
+Seen in mGBA: Each missed frame did `QTimer::singleShot(1, …)`. Now a single member `m_drawTimer` is started only `if (!isActive())`. d202cddd1 2021-07 “Qt: Reuse timer when rescheduling missing frames” • Also seen in NATS (nats-068): 99fed910f0 2021-06-29 Consumer state flush loop uses a reusable `time.Timer` (Stop, drain, Reset) to enforce 100 ms between writes. • a5d7e6bb61 2023-11-06 Converts `time.After` in client, consumer, cluster and MQTT code (the ack-floor loop gets a `Ticker`), since it "could cause gc pressure". • b543ed8de5 2026-05-18 Snapshot chunk loop and catchup retry use one rearmed timer each.
 
 ### mgba-166 — Don't pay setup or teardown for a disabled feature
 Lens: laziness · Source: mGBA
@@ -1411,12 +1411,12 @@ Watch out: —
 Seen in mGBA: `GBADMAService()` runs once per transferred unit. It recomputed the waitstate sum and `DMA_OFFSET[ctl]*width` every time. Those values now live in `struct GBADMA` as `cycles`, `sourceOffset` and `destOffset`. They are set when CNT_HI is written or the first unit runs, and recomputed only under `UNLIKELY(region changed)` or by `GBADMARecalculateCycles()` when WAITCNT changes or a savestate loads. An earlier commit removed the local copies that were written back to `info->` on every unit. 3385f02b5 2022-11 “GBA DMA: Minor optimization of warm function”; 4a5a25e90 2024-10 “GBA DMA: Cache cycle estimation on first DMA”; 2deb4aa6f 2025-11 “GBA DMA: Minor refactoring; cache offsets”; b92050b2f 2025-11 “GBA DMA: More cleanup/refactoring”
 
 ### mgba-177 — Test the cheapest, most-often-false condition first
-Lens: branching-fast-paths · Source: mGBA
+Lens: branching-fast-paths · Source: mGBA · Also: Aeron, Kafka
 Principle: A `&&` chain stops at the first false term. Put the cheap, usually-false test first, and compute dependent values only inside the branch that needs them.
 Why it is faster: —
 Applies elsewhere: check `if (!flag.enabled)` before parsing request headers, or test that a list is non-empty before sorting it.
 Watch out: —
-Seen in mGBA: The loop that aligns the other DMA channels used `time = a-b; if (time < 0 && enabled && count)`. It now reads `if (enabled && count) { time = ...; if (time < 0) ... }`. Most channels are disabled, so the loop usually skips the subtraction and the compare. 1c739e39e 2024-10 “GBA DMA: Minor branch optimization”
+Seen in mGBA: The loop that aligns the other DMA channels used `time = a-b; if (time < 0 && enabled && count)`. It now reads `if (enabled && count) { time = ...; if (time < 0) ... }`. Most channels are disabled, so the loop usually skips the subtraction and the compare. 1c739e39e 2024-10 “GBA DMA: Minor branch optimization” • Also seen in Aeron (aeron-016): 85bc974d54 2014-07-02 "Use the faster discriminator first": `channelId == channelId && destination.equals(...)`. c61c02b85b 2015-05-24 "Discriminate on int before string". • 1890134039 2015-11-01 "Fail on most common condition first". • 248ca76653 2017-03-14 `findPublication` tests stream id and endpoint before status and exclusivity. fa6fd904f4 2017-07-06 checks `registrationId()` before the `hasImage()` map lookup. • 64cfc94a6c 2018-01-17 `state() == ACTIVE` before the costlier `subscription.matches(publication)`. 65a24e9e4d 2018-11-30 orders the end-of-stream test to suit heartbeats, the common case. • 9fa3950c06 2019-08-28 Enum `sourceLocation == LOCAL` before a URI string compare. 52aea1d043 2019-12-07 compares the unique registration id before reading the type id when scanning counters. • 0fc9d33c2f 2020-04-14 `State.CLOSED == state` before a context method call. • 032c6b05a6 2021-02-13 "Discriminate first with cheaper check for leadershipTermId". 146a7f4cc8 2022-05-09 `!is_existing && matches_tag` in min flow control. • 31389450d6 2024-12-04 `isAcceptingSubscriptions` guards with `subscriberPositions.length > 0` before reading the volatile state, which it now reads once. • Also seen in Kafka (kafka-020): 4a688c5d6c 2011-08-20 The receive path throws on `size > maxSize` before allocating the buffer. 0bd4c87f9f 2014-04-25 ("oversized messages can slow down the brokers") moves the max-message-size check ahead of the CRC check instead of after offset assignment and recompression. • 33e005994d 2019-03-01 `!isReplicaInSync && quota.isThrottled && isQuotaExceeded` is reordered so in-sync replicas skip the quota checks. • 2ca30191d2 2019-08-13 `RecordAccumulator.ready` calls `leaderFor` only when a batch exists. • f3ded39a05 2019-09-18 `updateFollowerFetchState` skips `maybeExpandIsr` for followers already in the ISR and stops building sets: 1288.6 to 261.7 ns/op, 68.5 ns/op when the offset is unchanged. • 1a9697430a 2020-08-21 `fetchablePartitions` tests `isFetchable()` before the caller's predicate. • c034388a0a 2022-11-08 Lock-free `hasRemovedTasks()` / `hasExceptionsAndFailedTasks()` (`!queue.isEmpty()`) gate the drain handlers: about 15% more throughput. • d1a821226c 2025-09-29 Unauthorized topics are filtered out before sorting. • d3b8b1bd02 2026-08-25 `partitionReady()` defers leader and epoch lookups until after the empty-deque check and short-circuits remaining batch checks: 1000 topics, 5.647 to 3.389 µs/op.
 
 ### mgba-178 — Mark rare paths unlikely so the hot path is straight-line code
 Lens: compiler-build · Source: mGBA
@@ -1547,12 +1547,12 @@ Watch out: —
 Seen in mGBA: In `_mSDLAudioCallback`, the copy from the resampler output into SDL's buffer now happens after `mCoreSyncConsumeAudio()` releases the audio lock. Only the resampling, which reads the shared buffer, stays inside the lock. ea11fe648 2025-07 “SDL: Slighly reduce audio critical section”
 
 ### mgba-194 — Use positional I/O instead of seek, write, seek back
-Lens: io · Source: mGBA
+Lens: io · Source: mGBA · Also: Aeron
 Principle: Writing at an offset with `lseek`/`write`/`lseek` costs three or four syscalls and races on the shared file cursor. `pwrite`/`pread` does the same in one call without moving the cursor.
 Why it is faster: —
 Applies elsewhere: database page flushes with `pwrite`, and Windows OVERLAPPED offsets.
 Watch out: —
-Seen in mGBA: `VFileSce.sync` did seek(cur), seek(0), write, seek(cur). It now makes a single `sceIoPwrite(fd, buf, size, 0)` call. 5479ab130 2024-01 “Vita: Use sceIoPwrite in VFileSce.sync”
+Seen in mGBA: `VFileSce.sync` did seek(cur), seek(0), write, seek(cur). It now makes a single `sceIoPwrite(fd, buf, size, 0)` call. 5479ab130 2024-01 “Vita: Use sceIoPwrite in VFileSce.sync” • Also seen in Aeron (aeron-127): f2e9dcf9e9 2020-01-16 `RecordingWriter` uses `write(byteBuffer, fileOffset)` "so that the underlying implementation is unlikely to use fwrite and buffer the IO which could cause issues for live replays". • c7a93d01ba 2020-01-17 The extra `position(segmentOffset)` call for padding frames is removed.
 
 ### mgba-195 — Disable Nagle for small request/response protocols
 Lens: io · Source: mGBA
@@ -1651,12 +1651,12 @@ Watch out: —
 Seen in mGBA: `for (auto driver : m_inputDrivers)` and the similar loops over action lists became `for (auto& …)` in InputController and Window. Keyboard mapping runs one of these loops on every key event. 16fe12cc9 2023-08 “Qt: Remove shared_ptr copies in for loops”
 
 ### mgba-207 — Let buffers with disjoint lifetimes share one allocation
-Lens: allocation · Source: mGBA
+Lens: allocation · Source: mGBA · Also: TigerBeetle
 Principle: If two buffers are never in use at the same time, such as arguments and then results, one reused vector halves the allocations and keeps its capacity warm.
 Why it is faster: —
 Applies elsewhere: VMs that use a single operand stack for arguments and returns, and a per-request arena reused across processing phases.
 Watch out: —
-Seen in mGBA: `mScriptFrame`'s separate `arguments` and `returnValues` lists became a single `stack`, cleared after the arguments are consumed. The commit message gives the reason as "reduces malloc/free churn". 4d6fb5b3c 2024-11 “Scripting: Combine frame argument and return value stacks”
+Seen in mGBA: `mScriptFrame`'s separate `arguments` and `returnValues` lists became a single `stack`, cleared after the arguments are consumed. The commit message gives the reason as "reduces malloc/free churn". 4d6fb5b3c 2024-11 “Scripting: Combine frame argument and return value stacks” • Also seen in TigerBeetle (tigerbeetle-060): 784fbf1dfb 2021-11-23 The LSM sort scratch buffer is shared across trees. f37de23345 2021-11-23 shares superblock manifest memory between all trees. • 42afb7fac0 2025-09-19 introduced a per-memtable radix scratch buffer. 80ccac09ed 2025-10-28 replaces it with one buffer whose size and alignment are the comptime maximum over all trees. 660a0b1e45 2025-10-28 wraps it as `ScratchMemory` with acquire and release states (merged as "One radix buffer to rule them all", 4d87200937).
 
 ### mgba-208 — Intern constant keys and build short-lived records on the stack
 Lens: allocation · Source: mGBA
@@ -1843,12 +1843,12 @@ Watch out: —
 Seen in mGBA: Row pixels are `uint32_t`, with flags `FLAG_TARGET_1/2`, `FLAG_OBJWIN`, `FLAG_REBLEND` and the priority in the top byte and `color & 0x00FFFFFF` below. The macro-selected `_compositeBlendObjwin`, `_compositeNoBlendNoObjwin` and similar routines do the compositing. current code: src/gba/renderers/software-private.h
 
 ### mgba-231 — Load packed sub-word data a word at a time and unpack with constant shifts
-Lens: branching-fast-paths · Source: mGBA
+Lens: branching-fast-paths · Source: mGBA · Also: zstd
 Principle: Fetch a whole row of packed elements in one memory access and extract each element in a fully unrolled sequence with constant shift amounts. There is then no loop counter and only one load per group.
 Why it is faster: —
 Applies elsewhere: bit-packed integer decoders such as FastPFor, and 1bpp font blitters.
 Watch out: —
-Seen in mGBA: A 4bpp tile row is fetched with `LOAD_32(tileData, charBase, vram)`, then `BACKGROUND_DRAW_PIXEL_16(…, 0..7)` extracts the 8 pixels in unrolled code. 8bpp rows use two 32-bit loads, and horizontally flipped tiles have their own variants. current code: src/gba/renderers/software-mode0.c
+Seen in mGBA: A 4bpp tile row is fetched with `LOAD_32(tileData, charBase, vram)`, then `BACKGROUND_DRAW_PIXEL_16(…, 0..7)` extracts the 8 pixels in unrolled code. 8bpp rows use two 32-bit loads, and horizontally flipped tiles have their own variants. current code: src/gba/renderers/software-mode0.c • Also seen in zstd (zstd-090): 2491c65937 2022-05-23 A `memcpy` into a local struct in `ZSTD_decodeSequence` pushes aarch64 GCC to a single wide load: +2-4% on silesia and +2.5-6% on cantrbry at level 8 on Neoverse N1. • bd38fc2c5f 2025-06-20 The 4X2 Huffman fast loop does `entry = MEM_readLE32(&dtable[index]); write16(op,(U16)entry); bits <<= (entry>>16)&0x3F; op += entry>>24`, with `U64`/`U16` locals in place of `int`: up to 2.5% faster decompression (GCC 13).
 
 ### mgba-232 — Store history as reversible XOR deltas, diffed word-wide
 Lens: algorithms · Source: mGBA
